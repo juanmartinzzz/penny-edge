@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     await redis.set(`user:${email}`, JSON.stringify(user))
 
     // Remove password from response
-    const { password, ...userWithoutPassword } = user
+    const { password: userPassword, ...userWithoutPassword } = user
 
     return NextResponse.json({ user: userWithoutPassword })
   } catch (error) {
