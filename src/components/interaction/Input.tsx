@@ -10,6 +10,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
   label,
   required = false,
   disabled = false,
+  size = 'md',
   className = '',
   ...props
 }, ref) => {
@@ -25,7 +26,15 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
     onChange?.(newValue);
   };
 
-  const baseClasses = 'w-full px-4 py-3 border rounded-md transition-colors focus:outline-none focus:ring-2 disabled:opacity-60 disabled:cursor-not-allowed';
+  const sizeClasses = {
+    xs: 'px-3 py-2 text-xs h-8',
+    sm: 'px-3.5 py-2.5 text-sm h-9',
+    md: 'px-4 py-3 text-base h-11',
+    lg: 'px-4.5 py-3.5 text-lg h-13',
+    xl: 'px-5 py-4 text-xl h-15'
+  };
+
+  const baseClasses = 'w-full border rounded-md transition-colors focus:outline-none focus:ring-2 disabled:opacity-60 disabled:cursor-not-allowed';
   const borderClasses = error
     ? 'border-red-500 focus:border-red-500 focus:ring-red-200'
     : 'border-[#e2e8f0] focus:border-[#222834] focus:ring-[#222834]/20';
@@ -47,7 +56,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
         onChange={handleChange}
         disabled={disabled}
         required={required}
-        className={`${baseClasses} ${borderClasses} ${textClasses}`}
+        className={`${baseClasses} ${sizeClasses[size]} ${borderClasses} ${textClasses}`}
         {...props}
       />
       {error && (

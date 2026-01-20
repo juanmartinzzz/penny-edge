@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import PillList from '@/components/interaction/PillList';
 import Button from '@/components/interaction/Button';
 import { SymbolDetailsDrawer } from '@/components/SymbolDetailsDrawer';
@@ -25,21 +25,6 @@ interface SymbolPriceData {
   };
 }
 
-// Types for average price data
-interface AveragePricePeriod {
-  name: string;
-  averagePrice: number;
-  highestPrice: number;
-  lowestPrice: number;
-  changePercent?: number;
-  changeAbsolute?: number;
-  direction?: 'up' | 'down';
-}
-
-interface AveragePriceData {
-  symbol: string;
-  periods: AveragePricePeriod[];
-}
 
 // Function to load price changes for multiple symbols using the API route
 async function loadPriceChangesForSymbols(
@@ -110,8 +95,6 @@ export default function StocksPage() {
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
   const [selectedSymbolData, setSelectedSymbolData] = useState<Symbol | null>(null);
   const [isLoadingSymbolData, setIsLoadingSymbolData] = useState(false);
-  const [averagePriceData, setAveragePriceData] = useState<AveragePriceData | null>(null);
-  const [isLoadingAveragePrices, setIsLoadingAveragePrices] = useState(false);
 
   // Fetch symbols from API on component mount
   useEffect(() => {
@@ -142,22 +125,15 @@ export default function StocksPage() {
   useEffect(() => {
     if (selectedSymbol) {
       setIsLoadingSymbolData(true);
-      setIsLoadingAveragePrices(true);
-      setAveragePriceData(null);
 
-      // Load symbol data and average prices in parallel
-      Promise.all([
-        getSymbolData(selectedSymbol),
-        handleLoadAveragePricesForSymbol(selectedSymbol)
-      ]).then(([symbolData]) => {
+      // Load symbol data
+      getSymbolData(selectedSymbol).then((symbolData) => {
         setSelectedSymbolData(symbolData);
         setIsLoadingSymbolData(false);
       });
     } else {
       setSelectedSymbolData(null);
       setIsLoadingSymbolData(false);
-      setAveragePriceData(null);
-      setIsLoadingAveragePrices(false);
     }
   }, [selectedSymbol]);
 
@@ -181,7 +157,7 @@ export default function StocksPage() {
   const [symbolDetails, setSymbolDetails] = useState<Record<string, Symbol | null>>({});
 
   // Get symbol data by code (fetch from API if not cached)
-  const getSymbolData = async (symbolCode: string): Promise<Symbol | null> => {
+  const getSymbolData = useCallback(async (symbolCode: string): Promise<Symbol | null> => {
     if (symbolDetails[symbolCode] !== undefined) {
       return symbolDetails[symbolCode];
     }
@@ -209,7 +185,7 @@ export default function StocksPage() {
       }));
       return null;
     }
-  };
+  }, [symbolDetails]);
 
   // Get all symbols currently displayed
   const getDisplayedSymbols = () => {
@@ -330,41 +306,6 @@ export default function StocksPage() {
     }
   };
 
-  // Handle loading average prices for a symbol
-  const handleLoadAveragePricesForSymbol = async (symbol: string) => {
-    setIsLoadingAveragePrices(true);
-
-    try {
-      const response = await fetch('/api/average-prices', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          symbol,
-          numberOfDaysInPeriod: 5,
-          amountOfPeriods: 3
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      setAveragePriceData(data);
-    } catch (error) {
-      console.error(`Error loading average prices for ${symbol}:`, error);
-      setAveragePriceData(null);
-    } finally {
-      setIsLoadingAveragePrices(false);
-    }
-  };
 
   const renderSymbolList = (symbols: string[], exchange: string) => {
     if (symbols.length === 0) return null;
@@ -522,8 +463,6 @@ export default function StocksPage() {
         isLoadingSymbolData={isLoadingSymbolData}
         priceData={priceData}
         loadingSymbols={loadingSymbols}
-        averagePriceData={averagePriceData}
-        isLoadingAveragePrices={isLoadingAveragePrices}
         onClose={() => setSelectedSymbol(null)}
       />
     </main>

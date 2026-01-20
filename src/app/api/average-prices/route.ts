@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from 'next/server';
 // Types for average price data
 interface AveragePricePeriod {
   name: string;
+  startDaysAgo: number;
+  endDaysAgo: number;
   averagePrice: number;
   highestPrice: number;
   lowestPrice: number;
@@ -71,8 +73,11 @@ async function getAveragePrices(
     const periods: AveragePricePeriod[] = [];
     const now = Date.now() / 1000; // Convert to seconds
 
+    // Calculate one extra period to ensure all returned periods have change data
+    const periodsToCalculate = amountOfPeriods + 1;
+
     // Calculate periods from most recent to oldest
-    for (let i = 0; i < amountOfPeriods; i++) {
+    for (let i = 0; i < periodsToCalculate; i++) {
       const periodStartDays = i * numberOfDaysInPeriod;
       const periodEndDays = (i + 1) * numberOfDaysInPeriod;
 
@@ -101,6 +106,8 @@ async function getAveragePrices(
 
       const period: AveragePricePeriod = {
         name: periodName,
+        startDaysAgo: periodStartDays,
+        endDaysAgo: periodEndDays,
         averagePrice: Number(averagePrice.toFixed(2)),
         highestPrice: Number(highestPrice.toFixed(2)),
         lowestPrice: Number(lowestPrice.toFixed(2))
@@ -109,13 +116,13 @@ async function getAveragePrices(
       periods.push(period);
     }
 
-    // Calculate changes between periods (compare each period to the previous one)
-    for (let i = periods.length - 1; i > 0; i--) {
+    // Calculate changes between periods (compare each period to the next newer period)
+    for (let i = 0; i < periods.length - 1; i++) {
       const currentPeriod = periods[i];
-      const previousPeriod = periods[i - 1];
+      const nextPeriod = periods[i + 1];
 
-      const changeAbsolute = currentPeriod.averagePrice - previousPeriod.averagePrice;
-      const changePercent = (changeAbsolute / previousPeriod.averagePrice) * 100;
+      const changeAbsolute = currentPeriod.averagePrice - nextPeriod.averagePrice;
+      const changePercent = (changeAbsolute / nextPeriod.averagePrice) * 100;
 
       periods[i].changePercent = Number(changePercent.toFixed(4));
       periods[i].changeAbsolute = Number(changeAbsolute.toFixed(4));
@@ -125,9 +132,13 @@ async function getAveragePrices(
     // Reverse to show most recent first
     periods.reverse();
 
+    // Return only the requested number of periods (the most recent ones that have change data)
+    // Since we calculated one extra period, we take the last 'amountOfPeriods' from the reversed array
+    const periodsToReturn = periods.slice(-amountOfPeriods).reverse();
+
     return {
       symbol,
-      periods
+      periods: periodsToReturn
     };
 
   } catch (error) {

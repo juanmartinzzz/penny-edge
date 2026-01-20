@@ -1,5 +1,5 @@
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost';
-export type ButtonSize = 'sm' | 'md' | 'lg';
+export type ComponentSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
 export interface BaseProps {
   className?: string;
@@ -8,7 +8,7 @@ export interface BaseProps {
 
 export interface ButtonProps extends BaseProps {
   variant?: ButtonVariant;
-  size?: ButtonSize;
+  size?: ComponentSize;
   onClick?: () => void;
   children: React.ReactNode;
   type?: 'button' | 'submit' | 'reset';
@@ -22,6 +22,7 @@ export interface InputProps extends BaseProps {
   error?: string;
   label?: string;
   required?: boolean;
+  size?: ComponentSize;
 }
 
 export interface TextareaProps extends BaseProps {
@@ -33,6 +34,7 @@ export interface TextareaProps extends BaseProps {
   required?: boolean;
   rows?: number;
   autoResize?: boolean;
+  size?: ComponentSize;
 }
 
 export interface PillProps extends BaseProps {
@@ -40,4 +42,5 @@ export interface PillProps extends BaseProps {
   selected?: boolean;
   onClick?: () => void;
   variant?: 'single' | 'multiple';
+  size?: ComponentSize;
 }

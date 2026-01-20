@@ -1,9 +1,12 @@
 'use client';
 
-import { Search, Newspaper, TrendingUp } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Search, Newspaper, TrendingUp, Calendar, RefreshCw, Activity } from 'lucide-react';
 import { Drawer } from '@/components/ui/Drawer';
 import { SkeletonCard } from '@/components/ui/Loading';
 import { Symbol } from '@/types/symbol';
+import Input from '@/components/interaction/Input';
+import Button from '@/components/interaction/Button';
 
 // Types for price change data
 interface PriceChangeData {
@@ -20,6 +23,8 @@ interface PriceChangeData {
 // Types for average price data
 interface AveragePricePeriod {
   name: string;
+  startDaysAgo: number;
+  endDaysAgo: number;
   averagePrice: number;
   highestPrice: number;
   lowestPrice: number;
@@ -45,8 +50,6 @@ interface SymbolDetailsDrawerProps {
   isLoadingSymbolData: boolean;
   priceData: SymbolPriceData;
   loadingSymbols: Set<string>;
-  averagePriceData: AveragePriceData | null;
-  isLoadingAveragePrices: boolean;
   onClose: () => void;
 }
 
@@ -56,10 +59,58 @@ export function SymbolDetailsDrawer({
   isLoadingSymbolData,
   priceData,
   loadingSymbols,
-  averagePriceData,
-  isLoadingAveragePrices,
   onClose,
 }: SymbolDetailsDrawerProps) {
+  const [averagePriceData, setAveragePriceData] = useState<AveragePriceData | null>(null);
+  const [isLoadingAveragePrices, setIsLoadingAveragePrices] = useState(false);
+  const [numberOfDaysInPeriod, setNumberOfDaysInPeriod] = useState(5);
+  const [amountOfPeriods, setAmountOfPeriods] = useState(5);
+
+  // Handle loading average prices for a symbol
+  const handleLoadAveragePrices = async (symbol: string, daysInPeriod: number, periods: number) => {
+    setIsLoadingAveragePrices(true);
+
+    try {
+      const response = await fetch('/api/average-prices', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          symbol,
+          numberOfDaysInPeriod: daysInPeriod,
+          amountOfPeriods: periods
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      setAveragePriceData(data);
+    } catch (error) {
+      console.error(`Error loading average prices for ${symbol}:`, error);
+      setAveragePriceData(null);
+    } finally {
+      setIsLoadingAveragePrices(false);
+    }
+  };
+
+  // Load average prices when selectedSymbol or parameters change
+  useEffect(() => {
+    if (selectedSymbol) {
+      handleLoadAveragePrices(selectedSymbol, numberOfDaysInPeriod, amountOfPeriods);
+    } else {
+      setAveragePriceData(null);
+      setIsLoadingAveragePrices(false);
+    }
+  }, [selectedSymbol, numberOfDaysInPeriod, amountOfPeriods]);
   return (
     <Drawer
       isOpen={selectedSymbol !== null}
@@ -108,7 +159,54 @@ export function SymbolDetailsDrawer({
               <h3 className="text-lg font-semibold text-gray-900 mb-3">
                 Recent Prices
               </h3>
-              <div className="space-y-2">
+
+              {/* Parameters Controls */}
+              <div className="mb-4 p-2 bg-gray-50 rounded-md">
+                <div className="flex items-end gap-2">
+                  <div className="flex items-center gap-1 flex-1">
+                    <Calendar size={14} className="text-gray-500 flex-shrink-0" />
+                    <Input
+                      size="xs"
+                      type="number"
+                      value={numberOfDaysInPeriod.toString()}
+                      onChange={(value) => {
+                        const num = parseInt(value);
+                        if (num >= 1 && num <= 30) {
+                          setNumberOfDaysInPeriod(num);
+                        }
+                      }}
+                      className="text-sm"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1 flex-1">
+                    <Activity size={14} className="text-gray-500 flex-shrink-0" />
+                    <Input
+                      size="xs"
+                      type="number"
+                      value={amountOfPeriods.toString()}
+                      onChange={(value) => {
+                        const num = parseInt(value);
+                        if (num >= 1 && num <= 10) {
+                          setAmountOfPeriods(num);
+                        }
+                      }}
+                      className="text-sm"
+                    />
+                  </div>
+                  <Button
+                    variant="secondary"
+                    size="xs"
+                    onClick={() => selectedSymbol && handleLoadAveragePrices(selectedSymbol, numberOfDaysInPeriod, amountOfPeriods)}
+                    disabled={isLoadingAveragePrices || !selectedSymbol}
+                    className="flex-shrink-0"
+                  >
+                    <RefreshCw size={14} />
+                  </Button>
+                </div>
+              </div>
+
+              {/* Price Data Display */}
+              <div className="flex gap-3 overflow-x-auto pb-2">
                 {isLoadingAveragePrices ? (
                   <>
                     <SkeletonCard />
@@ -116,33 +214,26 @@ export function SymbolDetailsDrawer({
                     <SkeletonCard />
                   </>
                 ) : averagePriceData ? (
-                  averagePriceData.periods.map((period, index) => (
-                    <div key={index} className="p-3 bg-gray-50 rounded-md">
-                      <div className="text-sm font-medium text-gray-700 mb-1">{period.name}</div>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <span className="text-gray-600">Avg: </span>
-                          <span className="font-bold text-gray-900">${period.averagePrice.toFixed(2)}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">High: </span>
-                          <span className="font-semibold text-green-600">${period.highestPrice.toFixed(2)}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-600">Low: </span>
-                          <span className="font-semibold text-red-600">${period.lowestPrice.toFixed(2)}</span>
-                        </div>
-                        {period.changePercent !== undefined && (
-                          <div>
-                            <span className="text-gray-600">Change: </span>
-                            <span className={`font-semibold ${period.direction === 'up' ? 'text-green-600' : 'text-red-600'}`}>
-                              {period.direction === 'up' ? '+' : ''}{period.changePercent.toFixed(2)}%
-                            </span>
-                          </div>
-                        )}
+                  averagePriceData.periods.map((period, index) => {
+                    return (
+                      <div key={index} className="shrink-0 p-2 bg-gray-50 rounded-md">
+                      <div className="flex items-center gap-1 mb-1">
+                        <Calendar size={14} />
+                        <span className="text-xs font-medium text-gray-600">{period.endDaysAgo}d</span>
                       </div>
-                    </div>
-                  ))
+                      {period.changePercent !== undefined && (
+                        <div className={`text-xs font-semibold text-right ${period.direction === 'up' ? 'text-green-600' : 'text-red-600'}`} style={{fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Inconsolata, "Roboto Mono", Consolas, "Courier New", monospace'}}>
+                          {period.direction === 'up' ? '+' : ''}{period.changePercent.toFixed(1)}%
+                        </div>
+                      )}
+                      <div className="text-xs text-gray-900 font-bold text-right" style={{fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Inconsolata, "Roboto Mono", Consolas, "Courier New", monospace'}}>${period.averagePrice.toFixed(2)}</div>
+                      <div className="text-xs text-gray-600 text-right" style={{fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Inconsolata, "Roboto Mono", Consolas, "Courier New", monospace'}}>
+                        <div><span className="text-green-600">H</span> {period.highestPrice.toFixed(2)}</div>
+                        <div><span className="text-red-600">L</span> {period.lowestPrice.toFixed(2)}</div>
+                      </div>
+                      </div>
+                    );
+                  })
                 ) : (
                   <div className="text-gray-500 text-sm">No recent price data available</div>
                 )}
@@ -180,10 +271,10 @@ export function SymbolDetailsDrawer({
                           </span>
                         ) : (
                           <div className="text-right">
-                            <div className={`font-semibold text-sm ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
+                            <div className={`font-semibold text-sm ${isPositive ? 'text-green-600' : 'text-red-600'}`} style={{fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Inconsolata, "Roboto Mono", Consolas, "Courier New", monospace'}}>
                               {isPositive ? '+' : ''}{periodData.changePercent}%
                             </div>
-                            <div className="text-xs text-gray-600">
+                            <div className="text-xs text-gray-600" style={{fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Inconsolata, "Roboto Mono", Consolas, "Courier New", monospace'}}>
                               ${periodData.latestPrice}
                             </div>
                           </div>
@@ -232,7 +323,7 @@ export function SymbolDetailsDrawer({
             </div>
 
             {/* Scroll indicator */}
-            <div className="sticky bottom-0 h-6 bg-gradient-to-t from-white via-white/80 to-transparent pointer-events-none -mb-6" />
+            <div className="sticky bottom-0 h-6 bg-linear-to-t from-white via-white/80 to-transparent pointer-events-none -mb-6" />
           </div>
         );
       })()}

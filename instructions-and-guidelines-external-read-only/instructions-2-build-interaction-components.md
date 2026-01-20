@@ -21,7 +21,7 @@ Create `src/components/interaction/types.ts`:
 
 ```typescript
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost';
-export type ButtonSize = 'sm' | 'md' | 'lg';
+export type ComponentSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 
 export interface BaseProps {
   className?: string;
@@ -30,7 +30,7 @@ export interface BaseProps {
 
 export interface ButtonProps extends BaseProps {
   variant?: ButtonVariant;
-  size?: ButtonSize;
+  size?: ComponentSize;
   onClick?: () => void;
   children: React.ReactNode;
   type?: 'button' | 'submit' | 'reset';
@@ -44,6 +44,7 @@ export interface InputProps extends BaseProps {
   error?: string;
   label?: string;
   required?: boolean;
+  size?: ComponentSize;
 }
 
 export interface TextareaProps extends BaseProps {
@@ -62,6 +63,7 @@ export interface PillProps extends BaseProps {
   selected?: boolean;
   onClick?: () => void;
   variant?: 'single' | 'multiple';
+  size?: ComponentSize;
 }
 ```
 
@@ -93,9 +95,11 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(({
   };
 
   const sizeClasses = {
+    xs: 'px-3 py-2 text-xs h-8',
     sm: 'px-4 py-2 text-sm h-9',
-    md: 'px-6 py-3 text-base h-12',
-    lg: 'px-8 py-4 text-lg h-14'
+    md: 'px-5 py-3 text-base h-11',
+    lg: 'px-6 py-3 text-lg h-13',
+    xl: 'px-7 py-4 text-xl h-15'
   };
 
   return (
@@ -133,6 +137,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
   label,
   required = false,
   disabled = false,
+  size = 'md',
   className = '',
   ...props
 }, ref) => {
@@ -148,7 +153,15 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
     onChange?.(newValue);
   };
 
-  const baseClasses = 'w-full px-4 py-3 border rounded-md transition-colors focus:outline-none focus:ring-2 disabled:opacity-60 disabled:cursor-not-allowed';
+  const sizeClasses = {
+    xs: 'px-3 py-2 text-xs h-8',
+    sm: 'px-3.5 py-2.5 text-sm h-9',
+    md: 'px-4 py-3 text-base h-11',
+    lg: 'px-4.5 py-3.5 text-lg h-13',
+    xl: 'px-5 py-4 text-xl h-15'
+  };
+
+  const baseClasses = 'w-full border rounded-md transition-colors focus:outline-none focus:ring-2 disabled:opacity-60 disabled:cursor-not-allowed';
   const borderClasses = error
     ? 'border-red-500 focus:border-red-500 focus:ring-red-200'
     : 'border-[#e2e8f0] focus:border-[#222834] focus:ring-[#222834]/20';
@@ -170,7 +183,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
         onChange={handleChange}
         disabled={disabled}
         required={required}
-        className={`${baseClasses} ${borderClasses} ${textClasses}`}
+        className={`${baseClasses} ${sizeClasses[size]} ${borderClasses} ${textClasses}`}
         {...props}
       />
       {error && (
@@ -282,10 +295,19 @@ const Pill = forwardRef<HTMLButtonElement, PillProps>(({
   onClick,
   variant = 'single',
   disabled = false,
+  size = 'md',
   className = '',
   ...props
 }, ref) => {
-  const baseClasses = 'inline-flex items-center px-4 py-2 rounded-full text-sm font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed';
+  const sizeClasses = {
+    xs: 'px-3 py-2 text-xs h-8',
+    sm: 'px-3.5 py-2 text-sm h-9',
+    md: 'px-4 py-2 text-base h-11',
+    lg: 'px-4.5 py-2.5 text-lg h-13',
+    xl: 'px-5 py-3 text-xl h-15'
+  };
+
+  const baseClasses = 'inline-flex items-center rounded-full font-medium transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-60 disabled:cursor-not-allowed';
 
   const stateClasses = selected
     ? 'bg-[#222834] text-white hover:bg-[#1a1f2a] focus:ring-[#222834]'
@@ -300,7 +322,7 @@ const Pill = forwardRef<HTMLButtonElement, PillProps>(({
       ref={ref}
       onClick={onClick}
       disabled={disabled || !onClick}
-      className={`${baseClasses} ${stateClasses} ${interactionClasses} ${className}`}
+      className={`${baseClasses} ${sizeClasses[size]} ${stateClasses} ${interactionClasses} ${className}`}
       {...props}
     >
       {label}
@@ -325,6 +347,7 @@ interface PillListProps {
   selected?: string[];
   onChange?: (selected: string[]) => void;
   variant?: 'single' | 'multiple';
+  size?: ComponentSize;
   className?: string;
   disabled?: boolean;
 }
@@ -334,6 +357,7 @@ const PillList: React.FC<PillListProps> = ({
   selected = [],
   onChange,
   variant = 'single',
+  size = 'md',
   className = '',
   disabled = false
 }) => {
@@ -369,6 +393,7 @@ const PillList: React.FC<PillListProps> = ({
           selected={currentSelected.includes(option)}
           onClick={() => handlePillClick(option)}
           disabled={disabled}
+          size={size}
         />
       ))}
     </div>
@@ -430,43 +455,100 @@ const ComponentExamples: React.FC = () => {
       {/* Buttons */}
       <section className="space-y-6">
         <h2 className="text-2xl font-semibold text-[#14171f]">Buttons</h2>
-        <div className="flex flex-wrap gap-4">
-          <Button variant="primary" onClick={handleButtonClick}>
-            Primary Button
-          </Button>
-          <Button variant="secondary" onClick={handleButtonClick}>
-            Secondary Button
-          </Button>
-          <Button variant="ghost" onClick={handleButtonClick}>
-            Ghost Button
-          </Button>
-          <Button variant="primary" disabled>
-            Disabled Button
-          </Button>
+
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-[#14171f]">Variants</h3>
+          <div className="flex flex-wrap gap-4">
+            <Button variant="primary" onClick={handleButtonClick}>
+              Primary Button
+            </Button>
+            <Button variant="secondary" onClick={handleButtonClick}>
+              Secondary Button
+            </Button>
+            <Button variant="ghost" onClick={handleButtonClick}>
+              Ghost Button
+            </Button>
+            <Button variant="primary" disabled>
+              Disabled Button
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-[#14171f]">Sizes</h3>
+          <div className="flex flex-wrap items-end gap-4">
+            <Button variant="primary" size="xs" onClick={handleButtonClick}>
+              XS
+            </Button>
+            <Button variant="primary" size="sm" onClick={handleButtonClick}>
+              SM
+            </Button>
+            <Button variant="primary" size="md" onClick={handleButtonClick}>
+              MD
+            </Button>
+            <Button variant="primary" size="lg" onClick={handleButtonClick}>
+              LG
+            </Button>
+            <Button variant="primary" size="xl" onClick={handleButtonClick}>
+              XL
+            </Button>
+          </div>
         </div>
       </section>
 
       {/* Form Elements */}
       <section className="space-y-6">
         <h2 className="text-2xl font-semibold text-[#14171f]">Form Elements</h2>
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="space-y-4">
-            <Input
-              label="Email Address"
-              type="email"
-              placeholder="Enter your email"
-              onChange={handleInputChange}
-              required
-            />
-            <Input
-              label="Password"
-              type="password"
-              placeholder="Enter your password"
-              onChange={handleInputChange}
-              error="Password must be at least 8 characters"
-            />
+
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-[#14171f]">Input Sizes</h3>
+          <div className="grid md:grid-cols-2 gap-8">
+            <div className="space-y-4">
+              <Input
+                label="Extra Small Input"
+                size="xs"
+                placeholder="XS size input"
+                onChange={handleInputChange}
+              />
+              <Input
+                label="Small Input"
+                size="sm"
+                placeholder="SM size input"
+                onChange={handleInputChange}
+              />
+              <Input
+                label="Medium Input (Default)"
+                size="md"
+                placeholder="MD size input"
+                onChange={handleInputChange}
+              />
+            </div>
+            <div className="space-y-4">
+              <Input
+                label="Large Input"
+                size="lg"
+                placeholder="LG size input"
+                onChange={handleInputChange}
+              />
+              <Input
+                label="Extra Large Input"
+                size="xl"
+                placeholder="XL size input"
+                onChange={handleInputChange}
+              />
+              <Input
+                label="Input with Error"
+                placeholder="Enter your password"
+                onChange={handleInputChange}
+                error="Password must be at least 8 characters"
+              />
+            </div>
           </div>
-          <div className="space-y-4">
+        </div>
+
+        <div className="space-y-4">
+          <h3 className="text-lg font-medium text-[#14171f]">Textarea</h3>
+          <div className="max-w-md">
             <Textarea
               label="Message"
               placeholder="Enter your message..."
@@ -482,21 +564,76 @@ const ComponentExamples: React.FC = () => {
         <h2 className="text-2xl font-semibold text-[#14171f]">Pill Lists</h2>
 
         <div className="space-y-4">
-          <h3 className="text-lg font-medium text-[#14171f]">Single Selection</h3>
-          <PillList
-            options={['Option 1', 'Option 2', 'Option 3']}
-            variant="single"
-            onChange={handlePillChange}
-          />
+          <h3 className="text-lg font-medium text-[#14171f]">Pill Sizes</h3>
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="text-sm text-gray-600">XS:</span>
+              <PillList
+                options={['XS 1', 'XS 2', 'XS 3']}
+                variant="single"
+                size="xs"
+                onChange={handlePillChange}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="text-sm text-gray-600">SM:</span>
+              <PillList
+                options={['SM 1', 'SM 2', 'SM 3']}
+                variant="single"
+                size="sm"
+                onChange={handlePillChange}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="text-sm text-gray-600">MD:</span>
+              <PillList
+                options={['MD 1', 'MD 2', 'MD 3']}
+                variant="single"
+                size="md"
+                onChange={handlePillChange}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="text-sm text-gray-600">LG:</span>
+              <PillList
+                options={['LG 1', 'LG 2', 'LG 3']}
+                variant="single"
+                size="lg"
+                onChange={handlePillChange}
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="text-sm text-gray-600">XL:</span>
+              <PillList
+                options={['XL 1', 'XL 2', 'XL 3']}
+                variant="single"
+                size="xl"
+                onChange={handlePillChange}
+              />
+            </div>
+          </div>
         </div>
 
         <div className="space-y-4">
-          <h3 className="text-lg font-medium text-[#14171f]">Multiple Selection</h3>
-          <PillList
-            options={['React', 'TypeScript', 'Next.js', 'Tailwind']}
-            variant="multiple"
-            onChange={handlePillChange}
-          />
+          <h3 className="text-lg font-medium text-[#14171f]">Selection Types</h3>
+          <div className="space-y-4">
+            <div>
+              <h4 className="text-sm font-medium text-[#14171f] mb-2">Single Selection</h4>
+              <PillList
+                options={['Option 1', 'Option 2', 'Option 3']}
+                variant="single"
+                onChange={handlePillChange}
+              />
+            </div>
+            <div>
+              <h4 className="text-sm font-medium text-[#14171f] mb-2">Multiple Selection</h4>
+              <PillList
+                options={['React', 'TypeScript', 'Next.js', 'Tailwind']}
+                variant="multiple"
+                onChange={handlePillChange}
+              />
+            </div>
+          </div>
         </div>
       </section>
     </div>

@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import Pill from './Pill';
+import { ComponentSize } from './types';
 
 interface PillListProps {
   options: string[];
   selected?: string[];
   onChange?: (selected: string[]) => void;
   variant?: 'single' | 'multiple';
+  size?: ComponentSize;
   className?: string;
   disabled?: boolean;
 }
@@ -15,6 +17,7 @@ const PillList: React.FC<PillListProps> = ({
   selected = [],
   onChange,
   variant = 'single',
+  size = 'md',
   className = '',
   disabled = false
 }) => {
@@ -50,6 +53,7 @@ const PillList: React.FC<PillListProps> = ({
           selected={currentSelected.includes(option)}
           onClick={() => handlePillClick(option)}
           disabled={disabled}
+          size={size}
         />
       ))}
     </div>

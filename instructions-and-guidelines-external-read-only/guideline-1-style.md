@@ -62,15 +62,25 @@ This style guide is inspired by a clean, professional aesthetic. It emphasizes c
 
 ## Interactive Elements
 
+### Component Sizes
+All interactive elements (buttons, inputs, pills) follow a standardized size system using Tailwind's size scale (xs, sm, md, lg, xl) with consistent heights for proper inline alignment:
+
+- **xs**: 32px height - Compact elements for tight spaces
+- **sm**: 36px height - Small elements for secondary actions
+- **md**: 44px height - Default size for most use cases
+- **lg**: 52px height - Large elements for primary actions
+- **xl**: 60px height - Extra large elements for hero sections
+
 ### Buttons
 
 #### Primary Buttons
 - **Background**: Dark blue-gray (#222834)
 - **Text**: White (#ffffff)
 - **Border Radius**: 24px (fully rounded)
-- **Padding**: 12px 24px
-- **Font**: 16px, 500 weight
-- **Height**: 48px minimum
+- **Sizes**: xs (32px), sm (36px), md (44px), lg (52px), xl (60px)
+- **Padding**: Horizontal padding scales with size (xs: 12px, sm: 16px, md: 20px, lg: 24px, xl: 28px)
+- **Font**: Scales with size (xs: 12px, sm: 14px, md: 16px, lg: 18px, xl: 20px), 500 weight
+- **Height**: Matches size specifications above
 - **Hover**: Subtle shadow elevation
 - **Active**: Scale down to 95%
 - **Focus**: 2px outline in dark gray
@@ -80,12 +90,14 @@ This style guide is inspired by a clean, professional aesthetic. It emphasizes c
 - **Background**: White (#ffffff)
 - **Border**: 1px solid light gray (#d0d4dc)
 - **Text**: Medium gray (#373f51)
+- **Sizes**: Follows same size specifications as primary buttons
 - **Hover**: Subtle background tint
 - **Active**: Scale down to 95%
 
 #### Ghost Buttons
 - **Background**: Transparent
 - **Text**: Primary text color
+- **Sizes**: Follows same size specifications as primary buttons
 - **Hover**: Light gray background (#f1f5f9)
 
 ### Form Elements
@@ -93,7 +105,10 @@ This style guide is inspired by a clean, professional aesthetic. It emphasizes c
 #### Input Fields
 - **Border**: 1px solid light gray (#e2e8f0)
 - **Border Radius**: 6px
-- **Padding**: 12px 16px
+- **Sizes**: xs (32px), sm (36px), md (44px), lg (52px), xl (60px)
+- **Padding**: Vertical padding scales with size (xs: 8px, sm: 10px, md: 12px, lg: 14px, xl: 16px), horizontal padding (xs: 12px, sm: 14px, md: 16px, lg: 18px, xl: 20px)
+- **Font**: Scales with size (xs: 12px, sm: 14px, md: 16px, lg: 18px, xl: 20px)
+- **Height**: Matches size specifications above
 - **Focus**: 2px accent color outline
 - **Error**: Red border and background tint
 - **Disabled**: Light gray background, reduced opacity
@@ -101,7 +116,11 @@ This style guide is inspired by a clean, professional aesthetic. It emphasizes c
 #### Pill Lists
 - **Single Selection**: Only one pill can be active at a time
 - **Multiple Selection**: Multiple pills can be selected simultaneously
-- **Pill Styling**: Rounded background, padding: 8px 16px, border-radius: 20px
+- **Pill Styling**: Rounded background, border-radius: 20px
+- **Sizes**: xs (32px), sm (36px), md (44px), lg (52px), xl (60px)
+- **Padding**: Horizontal padding scales with size (xs: 12px, sm: 14px, md: 16px, lg: 18px, xl: 20px), vertical padding scales proportionally
+- **Font**: Scales with size (xs: 12px, sm: 14px, md: 16px, lg: 18px, xl: 20px)
+- **Height**: Matches size specifications above
 - **Default State**: Light gray background (#f9fafb), dark gray text (#14171f)
 - **Active/Selected**: Dark blue-gray background (#222834), white text
 - **Hover**: Subtle background color change, pointer cursor
