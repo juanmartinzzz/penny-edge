@@ -228,8 +228,8 @@ export function SymbolDetailsDrawer({
                       )}
                       <div className="text-xs text-gray-900 font-bold text-right" style={{fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Inconsolata, "Roboto Mono", Consolas, "Courier New", monospace'}}>${period.averagePrice.toFixed(2)}</div>
                       <div className="text-xs text-gray-600 text-right" style={{fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Monaco, Inconsolata, "Roboto Mono", Consolas, "Courier New", monospace'}}>
-                        <div><span className="text-green-600">H</span> {period.highestPrice.toFixed(2)}</div>
-                        <div><span className="text-red-600">L</span> {period.lowestPrice.toFixed(2)}</div>
+                        <div><span className="text-green-600">H</span>{period.highestPrice.toFixed(2)}</div>
+                        <div><span className="text-red-600">L</span>{period.lowestPrice.toFixed(2)}</div>
                       </div>
                       </div>
                     );

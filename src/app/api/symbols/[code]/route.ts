@@ -1,44 +1,59 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { ALL_SYMBOLS } from '@/lib/symbols';
+import { symbolService } from '@/lib/symbol-service';
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ code: string }> }
-) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ code: string }> }) {
+  try {
+    const { code } = await params;
+    const symbol = await symbolService.getSymbolByCode(decodeURIComponent(code));
+
+    if (!symbol) {
+      return NextResponse.json({ error: 'Symbol not found' }, { status: 404 });
+    }
+
+    return NextResponse.json(symbol);
+  } catch (error: any) {
+    console.error('Error getting symbol:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+}
+
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ code: string }> }) {
+  try {
+    const { code } = await params;
+    const body = await request.json();
+
+    const symbol = await symbolService.updateSymbolByCode(decodeURIComponent(code), body);
+    return NextResponse.json(symbol);
+  } catch (error: any) {
+    console.error('Error updating symbol:', error);
+
+    if (error.message === 'Symbol not found') {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;
 
-    // Parse the code - it might be "SYMBOL.TO" or "SYMBOL.V"
-    const [symbolCode, exchange] = code.split('.');
-
-    if (!symbolCode || !exchange) {
-      return NextResponse.json(
-        { error: 'Invalid symbol format. Expected: SYMBOL.EXCHANGE' },
-        { status: 400 }
-      );
-    }
-
-    // Find the symbol in our data
-    const symbol = ALL_SYMBOLS.find(s =>
-      s.code === symbolCode && s.exchange === exchange
-    );
-
+    // First get the symbol to get its ID for soft delete
+    const symbol = await symbolService.getSymbolByCode(decodeURIComponent(code));
     if (!symbol) {
-      return NextResponse.json(
-        { error: 'Symbol not found' },
-        { status: 404 }
-      );
+      return NextResponse.json({ error: 'Symbol not found' }, { status: 404 });
     }
 
-    return NextResponse.json({
-      symbol
-    });
+    await symbolService.softDeleteSymbol(symbol.id);
+    return new NextResponse(null, { status: 204 });
+  } catch (error: any) {
+    console.error('Error deleting symbol:', error);
 
-  } catch (error) {
-    console.error('Error fetching symbol details:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch symbol details' },
-      { status: 500 }
-    );
+    if (error.message === 'Symbol not found') {
+      return NextResponse.json({ error: error.message }, { status: 404 });
+    }
+
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

@@ -3,13 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "lsof -ti:3000 | xargs kill -9; next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "generate-symbols": "node generate-symbol-files.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.91.0",
     "@types/bcryptjs": "^2.4.6",
     "@upstash/redis": "^1.36.1",
     "bcryptjs": "^3.0.3",

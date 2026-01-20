@@ -1,6 +1,6 @@
 # Next.js Application Setup Guide
 
-This guide provides step-by-step instructions for creating a new Next.js application with authentication, deployed on Vercel, using Tailwind CSS, Framer Motion, Lucide Icons, Redis for data storage, and NextAuth.js for authentication with Users and Roles.
+This guide provides step-by-step instructions for creating a new Next.js application with authentication and file storage, deployed on Vercel, using Tailwind CSS, Framer Motion, Lucide Icons, Supabase for authentication and database storage, and Supabase Storage for file uploads.
 
 ## Step 1: Create Next.js Application
 
@@ -12,7 +12,7 @@ cd my-nextjs-app
 ## Step 2: Install Required Dependencies
 
 ```bash
-npm install next-auth redis @upstash/redis bcryptjs framer-motion lucide-react @types/bcryptjs
+npm install @supabase/supabase-js @supabase/ssr framer-motion lucide-react
 ```
 
 For development:
@@ -28,11 +28,13 @@ Copy the `.env.example` file to `.env.local` and fill in your values:
 cp .env.example .env.local
 ```
 
-Update the following variables in `.env.local`:
-- `NEXTAUTH_URL`: Your application URL (localhost for development, your Vercel URL for production)
-- `NEXTAUTH_SECRET`: Generate a secure random string (you can use `openssl rand -base64 32`)
-- `REDIS_URL`: Your Redis connection URL
-- `REDIS_TOKEN`: Your Redis token (if using Upstash or similar)
+Update the following variables in `.env.local` (these match Vercel's Supabase integration):
+- `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL (found in your Supabase dashboard under Settings > API)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anonymous/public key (found in your Supabase dashboard under Settings > API)
+- `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase service role key (keep this secret, only use server-side)
+- `SUPABASE_TABLE_PREFIX`: A prefix for your database tables (useful when multiple projects share the same database)
+
+Note: Vercel provides additional variables like `SUPABASE_SECRET_KEY` and `SUPABASE_JWT_SECRET` which you can use if needed for advanced configurations.
 
 ## Step 4: Configure Tailwind CSS with Custom Theme
 
@@ -64,136 +66,216 @@ module.exports = {
 }
 ```
 
-## Step 5: Set up NextAuth.js Configuration
+## Step 5: Set up Supabase Configuration
 
-Create `src/lib/auth.ts`:
+Create `src/lib/supabase.ts` for client-side Supabase client:
 
 ```typescript
-import { NextAuthOptions } from 'next-auth'
-import CredentialsProvider from 'next-auth/providers/credentials'
-import bcrypt from 'bcryptjs'
-import { Redis } from '@upstash/redis'
+import { createBrowserClient } from '@supabase/ssr'
 
-const redis = new Redis({
-  url: process.env.REDIS_URL!,
-  token: process.env.REDIS_TOKEN!,
-})
-
-export const authOptions: NextAuthOptions = {
-  providers: [
-    CredentialsProvider({
-      name: 'credentials',
-      credentials: {
-        email: { label: 'Email', type: 'email' },
-        password: { label: 'Password', type: 'password' }
-      },
-      async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) {
-          return null
-        }
-
-        // Get user from Redis
-        const userData = await redis.get(`user:${credentials.email}`)
-        if (!userData) {
-          return null
-        }
-
-        const user = JSON.parse(userData as string)
-        const isPasswordValid = await bcrypt.compare(credentials.password, user.password)
-
-        if (!isPasswordValid) {
-          return null
-        }
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        }
-      }
-    })
-  ],
-  session: {
-    strategy: 'jwt',
-  },
-  callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.role = user.role
-      }
-      return token
-    },
-    async session({ session, token }) {
-      if (token) {
-        session.user.id = token.sub!
-        session.user.role = token.role as string
-      }
-      return session
-    },
-  },
-  pages: {
-    signIn: '/auth/signin',
-    signUp: '/auth/signup',
-  },
+export function createClient() {
+  return createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  )
 }
+```
+
+Create `src/lib/supabase-server.ts` for server-side Supabase client:
+
+```typescript
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
+
+export function createClient() {
+  const cookieStore = cookies()
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll()
+        },
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            )
+          } catch {
+            // The `setAll` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
+        },
+      },
+    }
+  )
+}
+```
+
+Create `src/lib/supabase-admin.ts` for admin operations:
+
+```typescript
+import { createClient } from '@supabase/supabase-js'
+
+export const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  }
+)
+```
+
+Create `src/lib/database.ts` for database operations:
+
+```typescript
+import { supabaseAdmin } from './supabase-admin'
+
+export class DatabaseService {
+  private tablePrefix: string
+
+  constructor() {
+    this.tablePrefix = process.env.SUPABASE_TABLE_PREFIX || ''
+  }
+
+  private getTableName(table: string): string {
+    return `${this.tablePrefix}${table}`
+  }
+
+  // Example methods - extend as needed
+  async createUser(userData: { email: string; name: string; role?: string }) {
+    const { data, error } = await supabaseAdmin
+      .from(this.getTableName('users'))
+      .insert([{
+        ...userData,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }])
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  async getUserById(id: string) {
+    const { data, error } = await supabaseAdmin
+      .from(this.getTableName('users'))
+      .select('*')
+      .eq('id', id)
+      .single()
+
+    if (error) throw error
+    return data
+  }
+
+  async getUserByEmail(email: string) {
+    const { data, error } = await supabaseAdmin
+      .from(this.getTableName('users'))
+      .select('*')
+      .eq('email', email)
+      .single()
+
+    if (error) throw error
+    return data
+  }
+}
+
+export const databaseService = new DatabaseService()
 ```
 
 ## Step 6: Create API Routes
 
-Create `src/app/api/auth/[...nextauth]/route.ts`:
+Create `src/app/api/auth/callback/route.ts` for Supabase auth callback:
 
 ```typescript
-import NextAuth from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse } from 'next/server'
 
-const handler = NextAuth(authOptions)
+export async function GET(request: Request) {
+  const { searchParams, origin } = new URL(request.url)
+  const code = searchParams.get('code')
+  // if "next" is in param, use it as the redirect URL
+  const next = searchParams.get('next') ?? '/'
 
-export { handler as GET, handler as POST }
+  if (code) {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll()
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          },
+        },
+      }
+    )
+    const { error } = await supabase.auth.exchangeCodeForSession(code)
+    if (!error) {
+      const forwardedHost = request.headers.get('x-forwarded-host') // original origin before load balancer
+      const isLocalEnv = process.env.NODE_ENV === 'development'
+      if (isLocalEnv) {
+        // We can be sure that there is no load balancer in between, so no need to watch for X-Forwarded-Host
+        return NextResponse.redirect(`${origin}${next}`)
+      } else if (forwardedHost) {
+        return NextResponse.redirect(`https://${forwardedHost}${next}`)
+      } else {
+        return NextResponse.redirect(`${origin}${next}`)
+      }
+    }
+  }
+
+  // return the user to an error page with instructions
+  return NextResponse.redirect(`${origin}/auth/auth-code-error`)
+}
 ```
 
 Create `src/app/api/auth/register/route.ts` for user registration:
 
 ```typescript
 import { NextRequest, NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
-import { Redis } from '@upstash/redis'
-
-const redis = new Redis({
-  url: process.env.REDIS_URL!,
-  token: process.env.REDIS_TOKEN!,
-})
+import { databaseService } from '@/lib/database'
 
 export async function POST(request: NextRequest) {
   try {
     const { email, password, name } = await request.json()
 
-    // Check if user already exists
-    const existingUser = await redis.get(`user:${email}`)
-    if (existingUser) {
-      return NextResponse.json({ error: 'User already exists' }, { status: 400 })
+    if (!email || !password || !name) {
+      return NextResponse.json({ error: 'Email, password, and name are required' }, { status: 400 })
     }
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 12)
+    // Check if user already exists
+    try {
+      await databaseService.getUserByEmail(email)
+      return NextResponse.json({ error: 'User already exists' }, { status: 400 })
+    } catch (error) {
+      // User doesn't exist, continue with registration
+    }
 
-    // Create user object
-    const user = {
-      id: crypto.randomUUID(),
+    // Create user in database
+    const user = await databaseService.createUser({
       email,
       name,
-      password: hashedPassword,
-      role: 'USER',
-      createdAt: new Date().toISOString(),
-    }
+      role: 'user',
+    })
 
-    // Store user in Redis
-    await redis.set(`user:${email}`, JSON.stringify(user))
-
-    // Remove password from response
-    const { password: _, ...userWithoutPassword } = user
-
-    return NextResponse.json({ user: userWithoutPassword })
+    return NextResponse.json({
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+      }
+    })
   } catch (error) {
     console.error('Registration error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
@@ -209,7 +291,7 @@ Create `src/app/auth/signin/page.tsx`:
 'use client'
 
 import { useState } from 'react'
-import { signIn } from 'next-auth/react'
+import { createClient } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
 
 export default function SignIn() {
@@ -217,27 +299,46 @@ export default function SignIn() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
-      const result = await signIn('credentials', {
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
-        redirect: false,
       })
 
-      if (result?.error) {
-        alert('Invalid credentials')
+      if (error) {
+        alert(error.message)
       } else {
         router.push('/')
       }
     } catch (error) {
       console.error('Sign in error:', error)
+      alert('An unexpected error occurred')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const handleSignInWithProvider = async (provider: 'google' | 'github') => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: `${window.location.origin}/auth/callback`,
+        },
+      })
+
+      if (error) {
+        alert(error.message)
+      }
+    } catch (error) {
+      console.error('OAuth sign in error:', error)
+      alert('An unexpected error occurred')
     }
   }
 
@@ -286,6 +387,34 @@ export default function SignIn() {
               {isLoading ? 'Signing in...' : 'Sign in'}
             </button>
           </div>
+
+          <div className="mt-6">
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300" />
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-gray-50 text-gray-500">Or continue with</span>
+              </div>
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handleSignInWithProvider('google')}
+                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+              >
+                Google
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSignInWithProvider('github')}
+                className="w-full inline-flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
+              >
+                GitHub
+              </button>
+            </div>
+          </div>
         </form>
       </div>
     </div>
@@ -299,7 +428,8 @@ Create `src/app/auth/signup/page.tsx`:
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next-navigation'
+import { createClient } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 
 export default function SignUp() {
   const [email, setEmail] = useState('')
@@ -307,28 +437,32 @@ export default function SignUp() {
   const [name, setName] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const router = useRouter()
+  const supabase = createClient()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
+      const { error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            name: name,
+          },
         },
-        body: JSON.stringify({ email, password, name }),
       })
 
-      if (response.ok) {
-        router.push('/auth/signin')
+      if (error) {
+        alert(error.message)
       } else {
-        const data = await response.json()
-        alert(data.error || 'Registration failed')
+        alert('Check your email for the confirmation link')
+        router.push('/auth/signin')
       }
     } catch (error) {
       console.error('Registration error:', error)
+      alert('An unexpected error occurred')
     } finally {
       setIsLoading(false)
     }
@@ -398,7 +532,7 @@ export default function SignUp() {
 }
 ```
 
-## Step 8: Set up Session Provider
+## Step 8: Set up Supabase Provider
 
 Update `src/app/layout.tsx`:
 
@@ -406,13 +540,13 @@ Update `src/app/layout.tsx`:
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
-import { SessionProvider } from '@/components/SessionProvider'
+import { SupabaseProvider } from '@/components/SupabaseProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'My Next.js App',
-  description: 'Next.js app with authentication',
+  description: 'Next.js app with Supabase authentication',
 }
 
 export default function RootLayout({
@@ -423,29 +557,53 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={inter.className}>
-        <SessionProvider>
+        <SupabaseProvider>
           {children}
-        </SessionProvider>
+        </SupabaseProvider>
       </body>
     </html>
   )
 }
 ```
 
-Create `src/components/SessionProvider.tsx`:
+Create `src/components/SupabaseProvider.tsx`:
 
 ```tsx
 'use client'
 
-import { SessionProvider as NextAuthSessionProvider } from 'next-auth/react'
+import { createClient } from '@/lib/supabase'
+import { SessionContextProvider } from '@supabase/auth-helpers-react'
 
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+export function SupabaseProvider({ children }: { children: React.ReactNode }) {
+  const supabase = createClient()
+
   return (
-    <NextAuthSessionProvider>
+    <SessionContextProvider supabaseClient={supabase}>
       {children}
-    </NextAuthSessionProvider>
+    </SessionContextProvider>
   )
 }
+```
+
+Update your `src/lib/supabase.ts` to export the client for the provider:
+
+```typescript
+import { createBrowserClient } from '@supabase/ssr'
+
+let supabase: ReturnType<typeof createBrowserClient>
+
+export function createClient() {
+  // Create a singleton instance
+  if (!supabase) {
+    supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+  }
+  return supabase
+}
+
+export { supabase }
 ```
 
 ## Step 9: Create Protected Routes and Role-Based Access
@@ -455,9 +613,11 @@ Create `src/components/ProtectedRoute.tsx`:
 ```tsx
 'use client'
 
-import { useSession } from 'next-auth/react'
+import { useUser } from '@supabase/auth-helpers-react'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
+import { createClient } from '@/lib/supabase'
+import { databaseService } from '@/lib/database'
 
 interface ProtectedRouteProps {
   children: React.ReactNode
@@ -465,32 +625,40 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
-  const { data: session, status } = useSession()
+  const user = useUser()
   const router = useRouter()
+  const supabase = createClient()
 
   useEffect(() => {
-    if (status === 'loading') return // Still loading
+    if (user === undefined) return // Still loading
 
-    if (!session) {
+    if (!user) {
       router.push('/auth/signin')
       return
     }
 
-    if (requiredRole && session.user.role !== requiredRole) {
-      router.push('/unauthorized')
-      return
+    // Check user role if required
+    if (requiredRole) {
+      const checkUserRole = async () => {
+        try {
+          const userData = await databaseService.getUserById(user.id)
+          if (userData.role !== requiredRole) {
+            router.push('/unauthorized')
+          }
+        } catch (error) {
+          console.error('Error checking user role:', error)
+          router.push('/unauthorized')
+        }
+      }
+      checkUserRole()
     }
-  }, [session, status, router, requiredRole])
+  }, [user, router, requiredRole])
 
-  if (status === 'loading') {
+  if (user === undefined) {
     return <div>Loading...</div>
   }
 
-  if (!session) {
-    return null
-  }
-
-  if (requiredRole && session.user.role !== requiredRole) {
+  if (!user) {
     return null
   }
 
@@ -562,26 +730,33 @@ export function Icon({ name, size = 24, className }: IconProps) {
 Update `src/app/page.tsx`:
 
 ```tsx
-import { getServerSession } from 'next-auth'
-import { authOptions } from '@/lib/auth'
+import { createClient } from '@/lib/supabase-server'
 import { redirect } from 'next/navigation'
+import { databaseService } from '@/lib/database'
 
 export default async function Home() {
-  const session = await getServerSession(authOptions)
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  if (!session) {
+  if (!user) {
     redirect('/auth/signin')
   }
+
+  // Get additional user data from database
+  const userData = await databaseService.getUserById(user.id)
 
   return (
     <main className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
         <div className="px-4 py-6 sm:px-0">
           <h1 className="text-3xl font-bold text-gray-900">
-            Welcome, {session.user.name}!
+            Welcome, {userData.name}!
           </h1>
           <p className="mt-2 text-gray-600">
-            Your role: {session.user.role}
+            Your role: {userData.role}
+          </p>
+          <p className="mt-2 text-gray-600">
+            Email: {user.email}
           </p>
         </div>
       </div>
@@ -590,16 +765,83 @@ export default async function Home() {
 }
 ```
 
-## Step 13: Configure Vercel Deployment
+## Step 13: Set up Supabase Database
+
+1. Create a new Supabase project at https://supabase.com
+2. Go to the SQL Editor in your Supabase dashboard
+3. Run the following SQL to create your tables (replace `your_table_prefix` with your actual prefix):
+
+```sql
+-- Create users table with prefix
+CREATE TABLE your_table_prefix_users (
+  id UUID REFERENCES auth.users(id) PRIMARY KEY,
+  email TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  role TEXT DEFAULT 'user' CHECK (role IN ('user', 'admin', 'moderator')),
+  avatar TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create profiles table (optional, for additional user data)
+CREATE TABLE your_table_prefix_profiles (
+  id UUID REFERENCES your_table_prefix_users(id) PRIMARY KEY,
+  bio TEXT,
+  website TEXT,
+  location TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Enable Row Level Security
+ALTER TABLE your_table_prefix_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE your_table_prefix_profiles ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for users table
+CREATE POLICY "Users can view their own profile" ON your_table_prefix_users
+  FOR SELECT USING (auth.uid() = id);
+
+CREATE POLICY "Users can update their own profile" ON your_table_prefix_users
+  FOR UPDATE USING (auth.uid() = id);
+
+-- Allow admins to view all users
+CREATE POLICY "Admins can view all users" ON your_table_prefix_users
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM your_table_prefix_users
+      WHERE id = auth.uid() AND role = 'admin'
+    )
+  );
+
+-- Function to handle new user registration
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO your_table_prefix_users (id, email, name)
+  VALUES (NEW.id, NEW.email, COALESCE(NEW.raw_user_meta_data->>'name', NEW.email));
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Trigger to create user profile on signup
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
+```
+
+4. Update your environment variables with your Supabase project details
+
+## Step 14: Configure Vercel Deployment
 
 1. Push your code to GitHub
 2. Connect your repository to Vercel
 3. Add environment variables in Vercel dashboard:
-   - `NEXTAUTH_URL`: Your Vercel deployment URL
-   - `NEXTAUTH_SECRET`: Same as local
-   - `REDIS_URL`: Your Redis URL
+   - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase project URL
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase anonymous key
+   - `SUPABASE_SERVICE_ROLE_KEY`: Your Supabase service role key
+   - `SUPABASE_TABLE_PREFIX`: Your table prefix
 
-## Step 14: Test the Application
+## Step 15: Test the Application
 
 ```bash
 npm run dev
@@ -616,10 +858,17 @@ Visit `http://localhost:3000` and test:
 ### Environment Variables for Production
 Make sure to set all environment variables in your Vercel project settings.
 
+### Supabase Storage Setup (Optional)
+If you need file storage, create a storage bucket in your Supabase dashboard:
+
+1. Go to Storage in your Supabase dashboard
+2. Create a new bucket (e.g., "avatars", "uploads")
+3. Set up appropriate policies for access control
+
 ## Security Considerations
 
-1. **Password Hashing**: Using bcryptjs with salt rounds of 12
-2. **JWT Secrets**: Use strong, randomly generated secrets
-3. **Redis Security**: Use Redis with authentication and SSL
+1. **Supabase RLS**: Row Level Security is enabled on all tables
+2. **Service Role Key**: Keep the service role key secure, only use server-side
+3. **Table Prefix**: Use prefixes to avoid conflicts when sharing databases
 4. **Input Validation**: Add proper validation for user inputs
-5. **Rate Limiting**: Consider adding rate limiting for auth endpoints
+5. **Rate Limiting**: Supabase has built-in rate limiting, but consider additional measures for auth endpoints

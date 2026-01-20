@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import PillList from '@/components/interaction/PillList';
 import Button from '@/components/interaction/Button';
 import { SymbolDetailsDrawer } from '@/components/SymbolDetailsDrawer';
+import { SymbolUpdateStatus } from '@/components/ui/SymbolUpdateStatus';
 import { Symbol } from '@/types/symbol';
 
 
@@ -100,7 +101,7 @@ export default function StocksPage() {
   useEffect(() => {
     const fetchSymbols = async () => {
       try {
-        const response = await fetch('/api/symbols');
+        const response = await fetch('/api/symbols/symbols-from-static-file');
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -387,6 +388,12 @@ export default function StocksPage() {
               Browse penny stocks from Toronto Stock Exchange (TSX) and TSX Venture Exchange (TSXV)
             </p>
           </div>
+
+          <SymbolUpdateStatus
+            title="Market Data Status"
+            showTitle={true}
+            className="mb-8"
+          />
 
           <div className="mb-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-3">
