@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     if (shouldUpdatePrices) {
       // Update recent prices using the extracted logic
-      const priceData = await getAveragePrices(symbol, numberOfDaysInPeriod, amountOfPeriods);
+      const priceData = await getAveragePrices(symbol, exchange, numberOfDaysInPeriod, amountOfPeriods);
 
       // Update the symbol with the new price data
       await symbolService.updateSymbolByCode(symbol, {

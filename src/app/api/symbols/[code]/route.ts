@@ -4,7 +4,16 @@ import { symbolService } from '@/lib/symbol-service';
 export async function GET(request: NextRequest, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;
-    const symbol = await symbolService.getSymbolByCode(decodeURIComponent(code));
+    const decodedCode = decodeURIComponent(code);
+
+    // Handle both full symbol codes (e.g., "ABC.TO") and base codes (e.g., "ABC")
+    let symbolCode = decodedCode;
+    if (decodedCode.includes('.')) {
+      // If it contains a dot, it's a full symbol code, extract the base code
+      symbolCode = decodedCode.split('.')[0];
+    }
+
+    const symbol = await symbolService.getSymbolByCode(symbolCode);
 
     if (!symbol) {
       return NextResponse.json({ error: 'Symbol not found' }, { status: 404 });
@@ -21,8 +30,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { code } = await params;
     const body = await request.json();
+    const decodedCode = decodeURIComponent(code);
 
-    const symbol = await symbolService.updateSymbolByCode(decodeURIComponent(code), body);
+    // Handle both full symbol codes (e.g., "ABC.TO") and base codes (e.g., "ABC")
+    let symbolCode = decodedCode;
+    if (decodedCode.includes('.')) {
+      // If it contains a dot, it's a full symbol code, extract the base code
+      symbolCode = decodedCode.split('.')[0];
+    }
+
+    const symbol = await symbolService.updateSymbolByCode(symbolCode, body);
     return NextResponse.json(symbol);
   } catch (error: any) {
     console.error('Error updating symbol:', error);
@@ -38,9 +55,17 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ code: string }> }) {
   try {
     const { code } = await params;
+    const decodedCode = decodeURIComponent(code);
+
+    // Handle both full symbol codes (e.g., "ABC.TO") and base codes (e.g., "ABC")
+    let symbolCode = decodedCode;
+    if (decodedCode.includes('.')) {
+      // If it contains a dot, it's a full symbol code, extract the base code
+      symbolCode = decodedCode.split('.')[0];
+    }
 
     // First get the symbol to get its ID for soft delete
-    const symbol = await symbolService.getSymbolByCode(decodeURIComponent(code));
+    const symbol = await symbolService.getSymbolByCode(symbolCode);
     if (!symbol) {
       return NextResponse.json({ error: 'Symbol not found' }, { status: 404 });
     }

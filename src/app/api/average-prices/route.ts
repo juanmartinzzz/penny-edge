@@ -3,10 +3,14 @@ import { getAveragePrices } from '@/lib/price-service';
 
 export async function POST(request: NextRequest) {
   try {
-    const { symbol, numberOfDaysInPeriod, amountOfPeriods } = await request.json();
+    const { symbol, exchange, numberOfDaysInPeriod, amountOfPeriods } = await request.json();
 
     if (!symbol || typeof symbol !== 'string') {
       return NextResponse.json({ error: 'Symbol string is required' }, { status: 400 });
+    }
+
+    if (!exchange || typeof exchange !== 'string') {
+      return NextResponse.json({ error: 'Exchange string is required' }, { status: 400 });
     }
 
     if (!numberOfDaysInPeriod || typeof numberOfDaysInPeriod !== 'number' || numberOfDaysInPeriod <= 0) {
@@ -21,7 +25,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'amountOfPeriods cannot exceed 10' }, { status: 400 });
     }
 
-    const data = await getAveragePrices(symbol, numberOfDaysInPeriod, amountOfPeriods);
+    const data = await getAveragePrices(symbol, exchange, numberOfDaysInPeriod, amountOfPeriods);
 
     return NextResponse.json(data);
 

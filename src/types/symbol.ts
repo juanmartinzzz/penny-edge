@@ -34,6 +34,8 @@ export interface SymbolEntity {
   exchange: string;
   recent_prices?: AveragePriceData;
   last_updated_recent_prices?: string; // ISO timestamp string
+  hotness_score?: number;
+  last_updated_hotness_score?: string; // ISO timestamp string
   created_at: string; // ISO timestamp string (Supabase standard)
   updated_at: string;
   deleted_at?: string; // For soft-delete support (ISO timestamp)

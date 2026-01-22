@@ -71,13 +71,17 @@ export function SymbolDetailsDrawer({
     setIsLoadingAveragePrices(true);
 
     try {
+      // Parse symbol to get base symbol and exchange
+      const [baseSymbol, exchange] = symbol.split('.');
+
       const response = await fetch('/api/average-prices', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          symbol,
+          symbol: baseSymbol,
+          exchange,
           numberOfDaysInPeriod: daysInPeriod,
           amountOfPeriods: periods
         }),
@@ -302,7 +306,7 @@ export function SymbolDetailsDrawer({
                   <span>Google Search</span>
                 </a>
                 <a
-                  href={`https://www.google.com/search?q=${encodeURIComponent(selectedSymbol)}&tbm=nws`}
+                  href={`https://www.google.com/search?q=${encodeURIComponent(`${selectedSymbol} ${selectedSymbolData?.name || ''}`.trim())}&tbm=nws`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex flex-col items-center gap-1 p-2 text-xs text-[#373f51] hover:bg-[#f1f5f9] rounded-md transition-colors text-center"

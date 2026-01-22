@@ -285,11 +285,59 @@ export async function hardDeleteSymbol(id: string): Promise<void> {
   }
 }
 
+// Get all symbols with only code, exchange, and hotness_score for matching
+export async function getAllSymbolsForHotness(): Promise<Array<{ code: string; exchange: string; hotness_score?: number }>> {
+  const BATCH_SIZE = 1000;
+
+  // First, get the total count
+  const { count: totalCount, error: countError } = await supabaseAdmin
+    .from(SYMBOLS_TABLE)
+    .select('*', { count: 'exact', head: true })
+    .is('deleted_at', null);
+
+  if (countError) {
+    throw new Error(`Failed to get symbol count for hotness matching: ${countError.message}`);
+  }
+
+  if (!totalCount || totalCount === 0) {
+    return [];
+  }
+
+  const allSymbols: Array<{ code: string; exchange: string; hotness_score?: number }> = [];
+  const totalBatches = Math.ceil(totalCount / BATCH_SIZE);
+
+  // Fetch data in batches to handle Supabase's 1000 row limit
+  for (let batchIndex = 0; batchIndex < totalBatches; batchIndex++) {
+    const start = batchIndex * BATCH_SIZE;
+    const end = Math.min(start + BATCH_SIZE - 1, totalCount - 1);
+
+    const { data: batchData, error: batchError } = await supabaseAdmin
+      .from(SYMBOLS_TABLE)
+      .select('code, exchange, hotness_score')
+      .is('deleted_at', null)
+      .range(start, end);
+
+    if (batchError) {
+      throw new Error(`Failed to get symbols batch ${batchIndex + 1}/${totalBatches}: ${batchError.message}`);
+    }
+
+    if (batchData) {
+      allSymbols.push(...(batchData as Array<{ code: string; exchange: string; hotness_score?: number }>));
+    }
+  }
+
+  return allSymbols;
+}
+
 // Dashboard statistics
 export interface DashboardStats {
   totalSymbols: number;
   outdatedSymbols: number; // last_updated_recent_prices is null or >= 24 hours ago
   recentSymbols: number; // last_updated_recent_prices < 24 hours ago
+  symbolsWithHotnessScore: number; // symbols that have hotness_score calculated
+  averageHotnessScore: number; // average of all hotness scores
+  hotSymbols: number; // symbols with hotness_score > 70
+  coldSymbols: number; // symbols with hotness_score < 30
 }
 
 export async function getDashboardStats(): Promise<DashboardStats> {
@@ -319,9 +367,61 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   // Outdated symbols = total - recent (includes null values)
   const outdatedSymbols = (totalSymbols || 0) - (recentSymbols || 0);
 
+  // Get hotness score statistics
+  const { count: symbolsWithHotnessScore, error: hotnessCountError } = await supabaseAdmin
+    .from(SYMBOLS_TABLE)
+    .select('*', { count: 'exact', head: true })
+    .is('deleted_at', null)
+    .not('hotness_score', 'is', null);
+
+  if (hotnessCountError) {
+    throw new Error(`Failed to get symbols with hotness score count: ${hotnessCountError.message}`);
+  }
+
+  // Get average hotness score
+  const { data: avgData, error: avgError } = await supabaseAdmin
+    .from(SYMBOLS_TABLE)
+    .select('hotness_score')
+    .is('deleted_at', null)
+    .not('hotness_score', 'is', null);
+
+  if (avgError) {
+    throw new Error(`Failed to get hotness scores for average: ${avgError.message}`);
+  }
+
+  const averageHotnessScore = avgData && avgData.length > 0
+    ? avgData.reduce((sum, item) => sum + (item.hotness_score || 0), 0) / avgData.length
+    : 0;
+
+  // Get count of hot symbols (hotness_score > 70)
+  const { count: hotSymbols, error: hotError } = await supabaseAdmin
+    .from(SYMBOLS_TABLE)
+    .select('*', { count: 'exact', head: true })
+    .is('deleted_at', null)
+    .gt('hotness_score', 70);
+
+  if (hotError) {
+    throw new Error(`Failed to get hot symbols count: ${hotError.message}`);
+  }
+
+  // Get count of cold symbols (hotness_score < 30)
+  const { count: coldSymbols, error: coldError } = await supabaseAdmin
+    .from(SYMBOLS_TABLE)
+    .select('*', { count: 'exact', head: true })
+    .is('deleted_at', null)
+    .lt('hotness_score', 30);
+
+  if (coldError) {
+    throw new Error(`Failed to get cold symbols count: ${coldError.message}`);
+  }
+
   return {
     totalSymbols: totalSymbols || 0,
     outdatedSymbols,
     recentSymbols: recentSymbols || 0,
+    symbolsWithHotnessScore: symbolsWithHotnessScore || 0,
+    averageHotnessScore: Math.round(averageHotnessScore * 10) / 10, // Round to 1 decimal place
+    hotSymbols: hotSymbols || 0,
+    coldSymbols: coldSymbols || 0,
   };
 }

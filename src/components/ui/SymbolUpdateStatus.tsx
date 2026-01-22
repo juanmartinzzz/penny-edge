@@ -7,6 +7,10 @@ interface SymbolUpdateStats {
   totalSymbols: number;
   outdatedSymbols: number;
   recentSymbols: number;
+  symbolsWithHotnessScore: number;
+  averageHotnessScore: number;
+  hotSymbols: number;
+  coldSymbols: number;
 }
 
 interface SymbolUpdateStatusProps {
@@ -81,7 +85,7 @@ export function SymbolUpdateStatus({ title = "Symbol Update Status", showTitle =
     <div className={`space-y-2 ${className}`}>
       {showTitle && <h2 className="text-base font-bold text-gray-900 mb-1">{title}</h2>}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
         {/* Total Symbols Card */}
         <div className="bg-white rounded-md border p-3">
           <div className="flex items-center justify-between">
@@ -126,6 +130,24 @@ export function SymbolUpdateStatus({ title = "Symbol Update Status", showTitle =
             <div className="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
               <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        {/* Hotness Score Card */}
+        <div className="bg-white rounded-md border p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Hotness Score</p>
+              <p className="text-2xl font-bold text-orange-600">
+                {stats.symbolsWithHotnessScore.toLocaleString()} <span className="text-sm text-gray-500">({stats.totalSymbols > 0 ? ((stats.symbolsWithHotnessScore / stats.totalSymbols) * 100).toFixed(1) : 0}%)</span>
+              </p>
+            </div>
+            <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+              <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.879 16.121A3 3 0 1012.015 11L11 14H9c0 .768.293 1.536.879 2.121z" />
               </svg>
             </div>
           </div>

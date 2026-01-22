@@ -6,6 +6,7 @@ import {
   getSymbolByCode as getSymbolByCodeRepo,
   getSymbols as getSymbolsRepo,
   getSymbolsByFilter as getSymbolsByFilterRepo,
+  getAllSymbolsForHotness as getAllSymbolsForHotnessRepo,
   updateSymbol as updateSymbolRepo,
   updateSymbolByCode as updateSymbolByCodeRepo,
   softDeleteSymbol as softDeleteSymbolRepo,
@@ -57,6 +58,10 @@ export class SymbolService {
 
   async getSymbolsByFilter(filter: { code?: string; exchange?: string }): Promise<SymbolEntity[]> {
     return getSymbolsByFilterRepo(filter);
+  }
+
+  async getAllSymbolsForHotness(): Promise<Array<{ code: string; exchange: string; hotness_score?: number }>> {
+    return getAllSymbolsForHotnessRepo();
   }
 
   async updateSymbol(id: string, input: UpdateSymbolInput): Promise<SymbolEntity> {
