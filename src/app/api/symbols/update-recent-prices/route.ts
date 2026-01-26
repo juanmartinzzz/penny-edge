@@ -55,9 +55,11 @@ export async function POST(request: NextRequest) {
       // Update recent prices using the extracted logic
       const priceData = await getAveragePrices(symbol, exchange, numberOfDaysInPeriod, amountOfPeriods);
 
-      // Update the symbol with the new price data
+      // Update the symbol with the new price data and nullify hotness score since it's now invalid
       await symbolService.updateSymbolByCode(symbol, {
         recent_prices: priceData,
+        hotness_score: null,
+        last_updated_hotness_score: null,
       });
 
       return NextResponse.json({

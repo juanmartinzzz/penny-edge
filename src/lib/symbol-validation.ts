@@ -23,6 +23,8 @@ export const createSymbolSchema = z.object({
   code: z.string().min(1).max(50),
   exchange: z.string().min(1).max(10),
   recent_prices: averagePriceDataSchema.optional(),
+  hotness_score: z.number().int().min(0).max(100).nullable().optional(),
+  last_updated_hotness_score: z.string().nullable().optional(),
 });
 
 export const updateSymbolSchema = createSymbolSchema.partial();

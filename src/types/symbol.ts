@@ -52,4 +52,6 @@ export interface UpdateSymbolInput {
   code?: string;
   exchange?: string;
   recent_prices?: AveragePriceData;
+  hotness_score?: number | null;
+  last_updated_hotness_score?: string | null;
 }
