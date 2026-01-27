@@ -310,14 +310,16 @@ export default function FutureFeaturesManager() {
               <div key={feature.id} className="bg-white rounded-lg shadow-sm p-6 border">
                 <div className="flex justify-between items-start mb-4">
                   <div className="flex-1">
-                    <h4 className="text-lg font-semibold text-gray-900 mb-2">
-                      {feature.name}
-                    </h4>
-                    <div className="flex items-center space-x-4 text-sm text-gray-600">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="text-lg font-semibold text-gray-900">
+                        {feature.name}
+                      </h4>
                       <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${statusConfig.color}`}>
                         <StatusIcon className="w-3 h-3 mr-1" />
                         {statusConfig.label}
                       </div>
+                    </div>
+                    <div className="flex items-center space-x-4 text-sm text-gray-600">
                       {feature.releaseDate && (
                         <div className="flex items-center space-x-1">
                           <Calendar className="w-4 h-4" />
