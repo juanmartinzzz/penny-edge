@@ -23,12 +23,6 @@ export interface FutureFeature {
 
 const STORAGE_KEY = 'future-features';
 
-// Helper function to truncate text to 3 lines
-const truncateToLines = (text: string, maxLines: number = 3): string => {
-  const lines = text.split('\n');
-  if (lines.length <= maxLines) return text;
-  return lines.slice(0, maxLines).join('\n');
-};
 
 // Status configuration
 const STATUS_OPTIONS: FeatureStatus[] = ['frozen', 'to do', 'in progress', 'done'];
@@ -371,32 +365,27 @@ export default function FutureFeaturesManager() {
                     <div>
                       <h5 className="text-sm font-medium text-gray-700 mb-1">Requirements</h5>
                       <div className="relative">
-                        <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                          {expandedFields[feature.id]?.requirements
-                            ? feature.requirements
-                            : truncateToLines(feature.requirements)
-                          }
+                        <p className={`text-sm text-gray-600 whitespace-pre-wrap ${expandedFields[feature.id]?.requirements ? '' : 'line-clamp-3'}`}>
+                          {feature.requirements}
                         </p>
-                        {feature.requirements.split('\n').length > 3 && (
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => toggleFieldExpansion(feature.id, 'requirements')}
-                            className="mt-1 text-gray-500 hover:text-gray-700 p-0 h-auto"
-                          >
-                            {expandedFields[feature.id]?.requirements ? (
-                              <>
-                                <ChevronUp className="w-4 h-4 mr-1" />
-                                Show less
-                              </>
-                            ) : (
-                              <>
-                                <ChevronDown className="w-4 h-4 mr-1" />
-                                Show more
-                              </>
-                            )}
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => toggleFieldExpansion(feature.id, 'requirements')}
+                          className="mt-1 text-gray-500 hover:text-gray-700 p-0 h-auto"
+                        >
+                          {expandedFields[feature.id]?.requirements ? (
+                            <>
+                              <ChevronUp className="w-4 h-4 mr-1" />
+                              Show less
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-4 h-4 mr-1" />
+                              Show more
+                            </>
+                          )}
+                        </Button>
                       </div>
                     </div>
                   )}
@@ -405,32 +394,27 @@ export default function FutureFeaturesManager() {
                     <div>
                       <h5 className="text-sm font-medium text-gray-700 mb-1">Implementation Steps</h5>
                       <div className="relative">
-                        <p className="text-sm text-gray-600 whitespace-pre-wrap">
-                          {expandedFields[feature.id]?.implementationSteps
-                            ? feature.implementationSteps
-                            : truncateToLines(feature.implementationSteps)
-                          }
+                        <p className={`text-sm text-gray-600 whitespace-pre-wrap ${expandedFields[feature.id]?.implementationSteps ? '' : 'line-clamp-3'}`}>
+                          {feature.implementationSteps}
                         </p>
-                        {feature.implementationSteps.split('\n').length > 3 && (
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            onClick={() => toggleFieldExpansion(feature.id, 'implementationSteps')}
-                            className="mt-1 text-gray-500 hover:text-gray-700 p-0 h-auto"
-                          >
-                            {expandedFields[feature.id]?.implementationSteps ? (
-                              <>
-                                <ChevronUp className="w-4 h-4 mr-1" />
-                                Show less
-                              </>
-                            ) : (
-                              <>
-                                <ChevronDown className="w-4 h-4 mr-1" />
-                                Show more
-                              </>
-                            )}
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="xs"
+                          onClick={() => toggleFieldExpansion(feature.id, 'implementationSteps')}
+                          className="mt-1 text-gray-500 hover:text-gray-700 p-0 h-auto"
+                        >
+                          {expandedFields[feature.id]?.implementationSteps ? (
+                            <>
+                              <ChevronUp className="w-4 h-4 mr-1" />
+                              Show less
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-4 h-4 mr-1" />
+                              Show more
+                            </>
+                          )}
+                        </Button>
                       </div>
                     </div>
                   )}
