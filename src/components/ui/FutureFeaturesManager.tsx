@@ -5,7 +5,7 @@ import Button from '@/components/interaction/Button';
 import Input from '@/components/interaction/Input';
 import Textarea from '@/components/interaction/Textarea';
 import PillList from '@/components/interaction/PillList';
-import { Plus, Edit, Trash2, Calendar, CheckCircle, Clock, AlertCircle, Snowflake } from 'lucide-react';
+import { Plus, Edit, Trash2, Calendar, CheckCircle, Clock, AlertCircle, Snowflake, ChevronDown, ChevronUp } from 'lucide-react';
 
 // Types
 export type FeatureStatus = 'frozen' | 'to do' | 'in progress' | 'done';
@@ -22,6 +22,13 @@ export interface FutureFeature {
 }
 
 const STORAGE_KEY = 'future-features';
+
+// Helper function to truncate text to 3 lines
+const truncateToLines = (text: string, maxLines: number = 3): string => {
+  const lines = text.split('\n');
+  if (lines.length <= maxLines) return text;
+  return lines.slice(0, maxLines).join('\n');
+};
 
 // Status configuration
 const STATUS_OPTIONS: FeatureStatus[] = ['frozen', 'to do', 'in progress', 'done'];
@@ -54,6 +61,7 @@ export default function FutureFeaturesManager() {
   const [isEditing, setIsEditing] = useState(false);
   const [editingFeature, setEditingFeature] = useState<FutureFeature | null>(null);
   const [selectedStatuses, setSelectedStatuses] = useState<FeatureStatus[]>([]);
+  const [expandedFields, setExpandedFields] = useState<Record<string, { requirements: boolean; implementationSteps: boolean }>>({});
 
   // Form state
   const [formData, setFormData] = useState({
@@ -177,6 +185,16 @@ export default function FutureFeaturesManager() {
     setIsEditing(false);
     setEditingFeature(null);
     resetForm();
+  };
+
+  const toggleFieldExpansion = (featureId: string, field: 'requirements' | 'implementationSteps') => {
+    setExpandedFields(prev => ({
+      ...prev,
+      [featureId]: {
+        ...prev[featureId],
+        [field]: !prev[featureId]?.[field]
+      }
+    }));
   };
 
   const formatDate = (dateString: string | null) => {
@@ -352,14 +370,68 @@ export default function FutureFeaturesManager() {
                   {feature.requirements && (
                     <div>
                       <h5 className="text-sm font-medium text-gray-700 mb-1">Requirements</h5>
-                      <p className="text-sm text-gray-600 whitespace-pre-wrap">{feature.requirements}</p>
+                      <div className="relative">
+                        <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                          {expandedFields[feature.id]?.requirements
+                            ? feature.requirements
+                            : truncateToLines(feature.requirements)
+                          }
+                        </p>
+                        {feature.requirements.split('\n').length > 3 && (
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => toggleFieldExpansion(feature.id, 'requirements')}
+                            className="mt-1 text-gray-500 hover:text-gray-700 p-0 h-auto"
+                          >
+                            {expandedFields[feature.id]?.requirements ? (
+                              <>
+                                <ChevronUp className="w-4 h-4 mr-1" />
+                                Show less
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="w-4 h-4 mr-1" />
+                                Show more
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   )}
 
                   {feature.implementationSteps && (
                     <div>
                       <h5 className="text-sm font-medium text-gray-700 mb-1">Implementation Steps</h5>
-                      <p className="text-sm text-gray-600 whitespace-pre-wrap">{feature.implementationSteps}</p>
+                      <div className="relative">
+                        <p className="text-sm text-gray-600 whitespace-pre-wrap">
+                          {expandedFields[feature.id]?.implementationSteps
+                            ? feature.implementationSteps
+                            : truncateToLines(feature.implementationSteps)
+                          }
+                        </p>
+                        {feature.implementationSteps.split('\n').length > 3 && (
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            onClick={() => toggleFieldExpansion(feature.id, 'implementationSteps')}
+                            className="mt-1 text-gray-500 hover:text-gray-700 p-0 h-auto"
+                          >
+                            {expandedFields[feature.id]?.implementationSteps ? (
+                              <>
+                                <ChevronUp className="w-4 h-4 mr-1" />
+                                Show less
+                              </>
+                            ) : (
+                              <>
+                                <ChevronDown className="w-4 h-4 mr-1" />
+                                Show more
+                              </>
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
