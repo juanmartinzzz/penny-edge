@@ -12,6 +12,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
   disabled = false,
   size = 'md',
   className = '',
+  min,
+  max,
   ...props
 }, ref) => {
   const [internalValue, setInternalValue] = useState('');
@@ -56,6 +58,8 @@ const Input = forwardRef<HTMLInputElement, InputProps>(({
         onChange={handleChange}
         disabled={disabled}
         required={required}
+        min={min}
+        max={max}
         className={`${baseClasses} ${sizeClasses[size]} ${borderClasses} ${textClasses}`}
         {...props}
       />

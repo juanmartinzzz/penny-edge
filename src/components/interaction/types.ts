@@ -23,6 +23,8 @@ export interface InputProps extends BaseProps {
   label?: string;
   required?: boolean;
   size?: ComponentSize;
+  min?: string;
+  max?: string;
 }
 
 export interface TextareaProps extends BaseProps {

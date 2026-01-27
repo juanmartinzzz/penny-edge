@@ -16,6 +16,7 @@ export interface FutureFeature {
   requirements: string;
   implementationSteps: string;
   status: FeatureStatus;
+  priority: number;
   releaseDate: string | null;
   createdAt: string;
   updatedAt: string;
@@ -63,6 +64,7 @@ export default function FutureFeaturesManager() {
     requirements: '',
     implementationSteps: '',
     status: 'to do' as FeatureStatus,
+    priority: 10,
     releaseDate: ''
   });
 
@@ -72,7 +74,12 @@ export default function FutureFeaturesManager() {
     if (stored) {
       try {
         const parsedFeatures = JSON.parse(stored);
-        setFeatures(parsedFeatures);
+        // Ensure backward compatibility by adding default priority to existing features
+        const featuresWithPriority = parsedFeatures.map((feature: any) => ({
+          ...feature,
+          priority: feature.priority ?? 10
+        }));
+        setFeatures(featuresWithPriority);
       } catch (error) {
         console.error('Error parsing stored features:', error);
       }
@@ -89,17 +96,14 @@ export default function FutureFeaturesManager() {
     ? features
     : features.filter(feature => selectedStatuses.includes(feature.status));
 
-  // Sort features by status priority and creation date
+  // Sort features by priority (lower number = higher priority) and creation date
   const sortedFeatures = [...filteredFeatures].sort((a, b) => {
-    const statusOrder = ['to do', 'in progress', 'frozen', 'done'];
-    const aIndex = statusOrder.indexOf(a.status);
-    const bIndex = statusOrder.indexOf(b.status);
-
-    if (aIndex !== bIndex) {
-      return aIndex - bIndex;
+    // First sort by priority (ascending - lower priority number comes first)
+    if (a.priority !== b.priority) {
+      return a.priority - b.priority;
     }
 
-    // Within same status, sort by creation date (newest first)
+    // Within same priority, sort by creation date (newest first)
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
@@ -109,6 +113,7 @@ export default function FutureFeaturesManager() {
       requirements: '',
       implementationSteps: '',
       status: 'to do',
+      priority: 10,
       releaseDate: ''
     });
   };
@@ -127,6 +132,7 @@ export default function FutureFeaturesManager() {
       requirements: feature.requirements,
       implementationSteps: feature.implementationSteps,
       status: feature.status,
+      priority: feature.priority ?? 10,
       releaseDate: feature.releaseDate || ''
     });
   };
@@ -163,6 +169,7 @@ export default function FutureFeaturesManager() {
       const newFeature: FutureFeature = {
         id: crypto.randomUUID(),
         ...formData,
+        priority: formData.priority,
         releaseDate,
         createdAt: now,
         updatedAt: now
@@ -271,15 +278,27 @@ export default function FutureFeaturesManager() {
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Status
-              </label>
-              <PillList
-                options={STATUS_OPTIONS}
-                selected={[formData.status]}
-                onChange={(selected) => setFormData(prev => ({ ...prev, status: selected[0] as FeatureStatus }))}
-                variant="single"
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Status
+                </label>
+                <PillList
+                  options={STATUS_OPTIONS}
+                  selected={[formData.status]}
+                  onChange={(selected) => setFormData(prev => ({ ...prev, status: selected[0] as FeatureStatus }))}
+                  variant="single"
+                />
+              </div>
+
+              <Input
+                label="Priority"
+                type="number"
+                placeholder="10"
+                value={(formData.priority ?? 10).toString()}
+                onChange={(value) => setFormData(prev => ({ ...prev, priority: parseInt(value) || 10 }))}
+                min="1"
+                max="100"
               />
             </div>
 
@@ -303,26 +322,26 @@ export default function FutureFeaturesManager() {
       )}
 
       {/* Features List */}
-      <div className="space-y-4">
-        {sortedFeatures.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow-sm">
-            <p className="text-gray-500">
-              {features.length === 0
-                ? "No features added yet. Click 'Add Feature' to get started."
-                : "No features match your current filters."
-              }
-            </p>
-          </div>
-        ) : (
-          sortedFeatures.map((feature) => {
+      {sortedFeatures.length === 0 ? (
+        <div className="text-center py-12 bg-white rounded-lg shadow-sm">
+          <p className="text-gray-500">
+            {features.length === 0
+              ? "No features added yet. Click 'Add Feature' to get started."
+              : "No features match your current filters."
+            }
+          </p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {sortedFeatures.map((feature) => {
             const statusConfig = STATUS_CONFIG[feature.status];
             const StatusIcon = statusConfig.icon;
 
             return (
-              <div key={feature.id} className="bg-white rounded-lg shadow-sm p-6 border">
-                <div className="flex justify-between items-start mb-4">
+              <div key={feature.id} className="bg-white rounded-lg shadow-sm p-4 border">
+                <div className="flex justify-between items-start mb-3">
                   <div className="flex-1">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-1">
                       <h4 className="text-lg font-semibold text-gray-900">
                         {feature.name}
                       </h4>
@@ -331,36 +350,37 @@ export default function FutureFeaturesManager() {
                         {statusConfig.label}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-4 text-sm text-gray-600">
+                    <div className="flex items-center space-x-4 text-sm text-gray-600 mb-2">
+                      <span className="text-xs text-gray-500">Priority: {feature.priority}</span>
                       {feature.releaseDate && (
                         <div className="flex items-center space-x-1">
-                          <Calendar className="w-4 h-4" />
+                          <Calendar className="w-3 h-3" />
                           <span>{formatDate(feature.releaseDate)}</span>
                         </div>
                       )}
                     </div>
                   </div>
-                  <div className="flex space-x-2">
+                  <div className="flex space-x-1">
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="xs"
                       onClick={() => handleEditFeature(feature)}
-                      className="text-blue-600 hover:text-blue-800"
+                      className="text-blue-600 hover:text-blue-800 p-1"
                     >
-                      <Edit className="w-4 h-4" />
+                      <Edit className="w-3 h-3" />
                     </Button>
                     <Button
                       variant="ghost"
-                      size="sm"
+                      size="xs"
                       onClick={() => handleDeleteFeature(feature.id)}
-                      className="text-red-600 hover:text-red-800"
+                      className="text-red-600 hover:text-red-800 p-1"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3 h-3" />
                     </Button>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {feature.requirements && (
                     <div>
                       <h5 className="text-sm font-medium text-gray-700 mb-1">Requirements</h5>
@@ -421,9 +441,9 @@ export default function FutureFeaturesManager() {
                 </div>
               </div>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
     </div>
   );
 }
