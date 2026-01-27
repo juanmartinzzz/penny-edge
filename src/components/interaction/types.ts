@@ -15,7 +15,7 @@ export interface ButtonProps extends BaseProps {
 }
 
 export interface InputProps extends BaseProps {
-  type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url';
+  type?: 'text' | 'email' | 'password' | 'number' | 'tel' | 'url' | 'date';
   placeholder?: string;
   value?: string;
   onChange?: (value: string) => void;
