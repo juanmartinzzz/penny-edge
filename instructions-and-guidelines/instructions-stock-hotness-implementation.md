@@ -97,12 +97,20 @@ Combine drop score and volatility modifier, capped at 100.
 hotness_score = min(100, drop_score + volatility_score)
 ```
 
+### Step 8: Apply Liquidity Penalty
+If all periods have averageTradedValue below the threshold, halve the score to penalize low-volume stocks.
+
+```
+if all(periods.averageTradedValue < average_traded_value_threshold):
+    hotness_score = hotness_score / 2
+```
+
 ---
 
 ## Configurable Parameters
 
 ### UI Component Requirements
-Create a settings panel with the following adjustable parameters:
+Create a settings panel with the following adjustable parameters (including the new liquidity threshold):
 
 | Parameter | Description | Default | Min | Max | Step |
 |-----------|-------------|---------|-----|-----|------|
@@ -114,6 +122,7 @@ Create a settings panel with the following adjustable parameters:
 | `stable_multiplier` | Multiplier for volatile stocks with stable trend | **0.7** | 0.5 | 0.8 | 0.1 |
 | `uptrend_multiplier` | Multiplier for volatile stocks trending up (best case) | **1.0** | 0.8 | 1.2 | 0.1 |
 | `trend_boundary` | Percentage change that defines stable vs trending (±) | **3.0** | 2.0 | 5.0 | 0.5 |
+| `average_traded_value_threshold` | Minimum average traded value. If all periods below this, score is halved (penalizes low-volume stocks) | **10000** | 0 | 100000 | 1000 |
 
 ### UI Layout Suggestion
 
@@ -133,6 +142,10 @@ Create a settings panel with the following adjustable parameters:
 │ Stable Multiplier:       [0.7   ] (0.5-0.8)      │
 │ Uptrend Multiplier:      [1.0   ] (0.8-1.2)      │
 │ Trend Boundary %:        [3.0   ] (2.0-5.0)      │
+└──────────────────────────────────────────────────┘
+
+┌─ Liquidity Settings ──────────────────────────────┐
+│ Avg Traded Value Threshold: [10000] (0-100000)   │
 └──────────────────────────────────────────────────┘
 
 [Reset to Defaults] [Apply Custom Settings]
@@ -307,7 +320,7 @@ Even with high hotness scores, always:
 - [ ] Create input validation for N-price array (minimum N=2) with most recent first
 - [ ] Implement all 7 calculation steps in sequence
 - [ ] Ensure algorithm works correctly with variable N (test with N=2, N=5, N=10, N=20)
-- [ ] Build parameter configuration UI with ranges and defaults
+- [ ] Build parameter configuration UI with ranges and defaults (including average traded value threshold)
 - [ ] Add "Reset to Defaults" and "Apply Trader Recommended" buttons
 - [ ] Display breakdown of score (drop_score + volatility_score = total)
 - [ ] Show visual indicators: drop %, volatility %, trend direction, N value used

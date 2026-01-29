@@ -279,8 +279,25 @@ export function StockHotnessManager({
             </div>
           </div>
 
+          {/* Liquidity Settings */}
+          <div className="border rounded-md p-3 bg-gray-50">
+            <h4 className="text-sm font-medium text-[#14171f] mb-3">Liquidity Settings</h4>
+            <div className="grid grid-cols-1 gap-4">
+              <Input
+                label="Avg Traded Value Threshold"
+                type="number"
+                value={params.averageTradedValueThreshold.toString()}
+                onChange={(value) => updateParam('averageTradedValueThreshold', parseFloat(value) || 0)}
+                size="sm"
+              />
+            </div>
+            <p className="text-xs text-gray-600 mt-2">
+              If all periods have average traded value below this threshold, the hotness score is halved to penalize low-volume stocks.
+            </p>
+          </div>
+
           <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
-            <p><strong>Tip:</strong> Higher drop sensitivity catches smaller price drops. Higher volatility threshold only rewards truly volatile stocks.</p>
+            <p><strong>Tip:</strong> Higher drop sensitivity catches smaller price drops. Higher volatility threshold only rewards truly volatile stocks. Lower traded value threshold penalizes more low-volume stocks.</p>
           </div>
         </div>
       )}

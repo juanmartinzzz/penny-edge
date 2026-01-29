@@ -10,6 +10,7 @@ export interface HotnessScoreParams {
   stableMultiplier: number; // 0.5-0.8, default 0.7
   uptrendMultiplier: number; // 0.8-1.2, default 1.0
   trendBoundary: number; // 2.0-5.0, default 3.0
+  averageTradedValueThreshold: number; // 0-100000, default 10000 - if all periods below this, score is halved
 }
 
 // Default hotness score parameters
@@ -22,6 +23,7 @@ export const DEFAULT_HOTNESS_PARAMS: HotnessScoreParams = {
   stableMultiplier: 0.7,
   uptrendMultiplier: 1.0,
   trendBoundary: 3.0,
+  averageTradedValueThreshold: 10000,
 };
 
 // Recommended trader settings
@@ -34,6 +36,7 @@ export const RECOMMENDED_HOTNESS_PARAMS: HotnessScoreParams = {
   stableMultiplier: 0.7,
   uptrendMultiplier: 1.0,
   trendBoundary: 3.0,
+  averageTradedValueThreshold: 10000,
 };
 
 // Helper function to format symbol for Yahoo Finance API
@@ -197,13 +200,17 @@ export async function getAveragePrices(
 
 // Calculate hotness score from average price data
 export function calculateHotnessScore(
-  averagePrices: number[],
+  periods: AveragePricePeriod[],
   params: HotnessScoreParams = DEFAULT_HOTNESS_PARAMS
 ): number {
   // Input validation
-  if (!Array.isArray(averagePrices) || averagePrices.length < 2) {
-    throw new Error('Average prices array must contain at least 2 values');
+  if (!Array.isArray(periods) || periods.length < 2) {
+    throw new Error('Periods array must contain at least 2 values');
   }
+
+  // Extract average prices and traded values
+  const averagePrices = periods.map(p => p.averagePrice);
+  const averageTradedValues = periods.map(p => p.averageTradedValue);
 
   // Ensure all values are valid numbers
   const validPrices = averagePrices.filter(price => typeof price === 'number' && !isNaN(price));
@@ -262,7 +269,17 @@ export function calculateHotnessScore(
   }
 
   // Step 7: Calculate Final Hotness Score
-  const hotnessScore = Math.min(100, dropScore + volatilityScore);
+  let hotnessScore = Math.min(100, dropScore + volatilityScore);
+
+  // Step 8: Apply average traded value penalty
+  // If all periods have averageTradedValue below threshold, halve the score
+  const allBelowThreshold = averageTradedValues.every(value =>
+    typeof value === 'number' && !isNaN(value) && value < params.averageTradedValueThreshold
+  );
+
+  if (allBelowThreshold) {
+    hotnessScore = hotnessScore / 2;
+  }
 
   return Math.round(hotnessScore * 100) / 100; // Round to 2 decimal places
 }

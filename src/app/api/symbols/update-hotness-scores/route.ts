@@ -68,14 +68,13 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Extract average prices from most recent to oldest
-        const averagePrices = symbol.recent_prices.periods
+        // Extract periods from most recent to oldest
+        const periods = symbol.recent_prices.periods
           .slice() // Create a copy
-          .reverse() // Most recent first
-          .map(period => period.averagePrice);
+          .reverse(); // Most recent first
 
         // Calculate hotness score
-        const hotnessScore = calculateHotnessScore(averagePrices, params);
+        const hotnessScore = calculateHotnessScore(periods, params);
 
         updates.push({
           id: symbol.id,

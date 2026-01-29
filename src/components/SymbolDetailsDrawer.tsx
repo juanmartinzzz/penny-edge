@@ -168,7 +168,7 @@ export function SymbolDetailsDrawer({
               <div className="mb-4 p-2 bg-gray-50 rounded-md">
                 <div className="flex items-end gap-2">
                   <div className="flex items-center gap-1 flex-1">
-                    <Calendar size={14} className="text-gray-500 flex-shrink-0" />
+                    <Calendar size={14} className="text-gray-500 shrink-0" />
                     <Input
                       size="xs"
                       type="number"
@@ -183,7 +183,7 @@ export function SymbolDetailsDrawer({
                     />
                   </div>
                   <div className="flex items-center gap-1 flex-1">
-                    <Activity size={14} className="text-gray-500 flex-shrink-0" />
+                    <Activity size={14} className="text-gray-500 shrink-0" />
                     <Input
                       size="xs"
                       type="number"
@@ -202,7 +202,7 @@ export function SymbolDetailsDrawer({
                     size="xs"
                     onClick={() => selectedSymbol && handleLoadAveragePrices(selectedSymbol, numberOfDaysInPeriod, amountOfPeriods)}
                     disabled={isLoadingAveragePrices || !selectedSymbol}
-                    className="flex-shrink-0"
+                    className="shrink-0" 
                   >
                     <RefreshCw size={14} />
                   </Button>
