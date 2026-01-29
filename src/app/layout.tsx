@@ -5,8 +5,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'My Next.js App',
-  description: 'Next.js app with authentication',
+  title: 'Penny Edge Stock Analyzer',
+  description: 'Analyze penny stocks from Toronto Stock Exchange (TSX) and TSX Venture Exchange (TSXV)',
 }
 
 export default function RootLayout({

@@ -49,7 +49,9 @@ export async function POST(request: NextRequest) {
     const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
     const shouldUpdatePrices = !existingSymbol.last_updated_recent_prices ||
-      new Date(existingSymbol.last_updated_recent_prices) < twentyFourHoursAgo;
+      new Date(existingSymbol.last_updated_recent_prices) < twentyFourHoursAgo ||
+      // Also update if existing data doesn't have volume fields (legacy data)
+      !existingSymbol.recent_prices?.periods?.[0]?.averageVolume;
 
     if (shouldUpdatePrices) {
       // Update recent prices using the extracted logic

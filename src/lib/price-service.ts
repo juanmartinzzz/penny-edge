@@ -88,12 +88,14 @@ export async function getAveragePrices(
     }
 
     // Get valid data points (filter out nulls)
-    const validData: { timestamp: number; close: number }[] = [];
+    const validData: { timestamp: number; close: number; volume: number | null }[] = [];
     quotes.close.forEach((close: number | null, index: number) => {
       if (close !== null && timestamps[index]) {
+        const volume = quotes.volume?.[index] ?? null;
         validData.push({
           timestamp: timestamps[index],
-          close: close
+          close: close,
+          volume: volume
         });
       }
     });
@@ -125,9 +127,16 @@ export async function getAveragePrices(
       if (periodData.length === 0) continue;
 
       const prices = periodData.map(p => p.close);
+      const volumes = periodData.map(p => p.volume).filter((v): v is number => v !== null);
       const averagePrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
       const highestPrice = Math.max(...prices);
       const lowestPrice = Math.min(...prices);
+      const averageVolume = volumes.length > 0 
+        ? volumes.reduce((sum, volume) => sum + volume, 0) / volumes.length 
+        : 0;
+      const highestVolume = volumes.length > 0 ? Math.max(...volumes) : 0;
+      const lowestVolume = volumes.length > 0 ? Math.min(...volumes) : 0;
+      const averageTradedValue = averagePrice * averageVolume;
 
       // Determine period name
       let periodName: string;
@@ -145,7 +154,11 @@ export async function getAveragePrices(
         endDaysAgo: periodEndDays,
         averagePrice: Number(averagePrice.toFixed(2)),
         highestPrice: Number(highestPrice.toFixed(2)),
-        lowestPrice: Number(lowestPrice.toFixed(2))
+        lowestPrice: Number(lowestPrice.toFixed(2)),
+        averageVolume: Math.round(averageVolume),
+        highestVolume: Math.round(highestVolume),
+        lowestVolume: Math.round(lowestVolume),
+        averageTradedValue: Number(averageTradedValue.toFixed(2))
       };
 
       periods.push(period);

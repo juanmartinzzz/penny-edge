@@ -6,6 +6,10 @@ export interface AveragePricePeriod {
   averagePrice: number;
   highestPrice: number;
   lowestPrice: number;
+  averageVolume: number;
+  highestVolume: number;
+  lowestVolume: number;
+  averageTradedValue: number;
   changePercent?: number;
   changeAbsolute?: number;
   direction?: 'up' | 'down';

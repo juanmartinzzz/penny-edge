@@ -7,7 +7,8 @@ import { SymbolDetailsDrawer } from '@/components/SymbolDetailsDrawer';
 import { SymbolUpdateStatus } from '@/components/ui/SymbolUpdateStatus';
 import { SymbolAutoManager } from '@/components/ui/SymbolAutoManager';
 import { StockHotnessManager } from '@/components/ui/StockHotnessManager';
-import { Symbol } from '@/types/symbol';
+import { Symbol, AveragePriceData } from '@/types/symbol';
+import { formatCurrency } from '@/lib/format-number';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 
 
@@ -108,6 +109,7 @@ export default function StocksPage() {
   const [selectedSymbolData, setSelectedSymbolData] = useState<Symbol | null>(null);
   const [isLoadingSymbolData, setIsLoadingSymbolData] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [averagePriceData, setAveragePriceData] = useState<{[symbol: string]: AveragePriceData | null}>({});
 
   // Fetch symbols from API on component mount
   useEffect(() => {
@@ -356,6 +358,40 @@ export default function StocksPage() {
           }
         }));
       });
+
+      // Fetch average price data via API route to avoid CORS issues
+      try {
+        // Parse symbol and exchange from format like "AAPL" or "SHOP.TO"
+        const [symbolCode, exchange = ''] = symbol.split('.');
+        const response = await fetch('/api/average-prices', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            symbol: symbolCode,
+            exchange: exchange,
+            numberOfDaysInPeriod: 7,
+            amountOfPeriods: 4
+          }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const averageData = await response.json();
+        setAveragePriceData(prev => ({
+          ...prev,
+          [symbol]: averageData
+        }));
+      } catch (error) {
+        console.error(`Error loading average prices for ${symbol}:`, error);
+        setAveragePriceData(prev => ({
+          ...prev,
+          [symbol]: null
+        }));
+      }
     } catch (error) {
       console.error(`Error loading price changes for ${symbol}:`, error);
 
@@ -442,36 +478,21 @@ export default function StocksPage() {
                   </div>
                 </Button>
 
-                {/* Price data displayed below button when loaded */}
-                {hasPriceData && (
-                  <div className="mt-2 space-y-1 bg-white border border-gray-200 rounded-md p-2 shadow-sm">
-                    {['1d', '5d', '1mo'].map(period => {
-                      const periodData = symbolData[period];
-                      if (!periodData) return null;
-
-                      const isPositive = periodData.direction === 'up';
-                      const hasError = periodData.error;
-
-                      return (
-                        <div key={period} className="flex justify-between items-center text-xs">
-                          <span className="text-gray-500 font-medium">{period}:</span>
-                          {hasError ? (
-                            <span className="text-red-500" title={periodData.error}>
-                              {periodData.error?.includes('404') ? 'Not found' : 'Error'}
-                            </span>
-                          ) : (
-                            <div className="flex items-center space-x-1">
-                              <span className={`font-medium ${isPositive ? 'text-green-600' : 'text-red-600'}`}>
-                                {isPositive ? '+' : ''}{periodData.changePercent}%
-                              </span>
-                              <span className="text-gray-600">
-                                ${periodData.latestPrice}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                {/* Average traded value displayed below button when loaded */}
+                {averagePriceData[symbol] && (
+                  <div className="mt-2 flex justify-center">
+                    <div className="max-w-full overflow-hidden">
+                      <div className="flex items-center gap-1 flex-wrap justify-center">
+                        {averagePriceData[symbol]!.periods.map((period, index) => (
+                          <span
+                            key={index}
+                            className="inline-flex items-center px-2 py-1 text-[10px] font-mono font-medium bg-gray-100 text-gray-700 rounded-full whitespace-nowrap"
+                          >
+                            {formatCurrency(period.averageTradedValue)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

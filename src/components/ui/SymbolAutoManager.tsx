@@ -392,7 +392,7 @@ export function SymbolAutoManager({
                   {symbol.code}.{symbol.exchange}
                 </span>
                 <span className={`text-right font-medium ${getStatusColor(symbol.status)}`}>
-                  {symbol.message}
+                  {symbol.message || 'Processing...'}
                 </span>
               </div>
             ))}
