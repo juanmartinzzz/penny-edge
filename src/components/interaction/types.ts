@@ -20,11 +20,25 @@ export interface InputProps extends BaseProps {
   value?: string;
   onChange?: (value: string) => void;
   error?: string;
-  label?: string;
+  label?: React.ReactNode;
   required?: boolean;
   size?: ComponentSize;
   min?: string;
   max?: string;
+}
+
+export interface NumericInputProps extends BaseProps {
+  value?: string;
+  onChange?: (value: string) => void;
+  min?: number;
+  max?: number;
+  placeholder?: string;
+  error?: string;
+  label?: React.ReactNode;
+  required?: boolean;
+  size?: ComponentSize;
+  formatAsKMB?: boolean;
+  center?: boolean;
 }
 
 export interface TextareaProps extends BaseProps {
@@ -32,7 +46,7 @@ export interface TextareaProps extends BaseProps {
   value?: string;
   onChange?: (value: string) => void;
   error?: string;
-  label?: string;
+  label?: React.ReactNode;
   required?: boolean;
   rows?: number;
   autoResize?: boolean;

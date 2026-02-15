@@ -21,3 +21,5 @@ export function getTableName(table: string): string {
 
 // Table names
 export const SYMBOLS_TABLE = getTableName('symbols');
+export const SYMBOLS_V2_TABLE = getTableName('symbols_v2');
+export const CONFIG_TABLE = getTableName('config');

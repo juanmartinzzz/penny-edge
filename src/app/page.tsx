@@ -20,6 +20,11 @@ export default function Home() {
                   Browse TSX & TSXV Stocks
                 </Button>
               </Link>
+              <Link href="/market-snapshot">
+                <Button variant="primary">
+                  Market Snapshot
+                </Button>
+              </Link>
               <Link href="/future-features">
                 <Button variant="secondary">
                   Manage Future Features

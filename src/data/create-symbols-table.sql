@@ -26,5 +26,5 @@ CREATE INDEX IF NOT EXISTS idx_penny_edge_symbols_created_at ON penny_edge_symbo
 CREATE INDEX IF NOT EXISTS idx_penny_edge_symbols_updated_at ON penny_edge_symbols(updated_at DESC) WHERE deleted_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_penny_edge_symbols_hotness_score ON penny_edge_symbols(hotness_score DESC) WHERE deleted_at IS NULL;
 
--- Add trigger for created_at, updated_at
+-- Add trigger for updated_at
 CREATE TRIGGER update_timestamp_trigger BEFORE UPDATE ON penny_edge_symbols FOR EACH ROW EXECUTE FUNCTION update_timestamp();

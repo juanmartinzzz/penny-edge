@@ -7,6 +7,7 @@ import { SkeletonCard } from '@/components/ui/Loading';
 import { Symbol } from '@/types/symbol';
 import Input from '@/components/interaction/Input';
 import Button from '@/components/interaction/Button';
+import { generateTradingViewUrl } from '@/utils/trading-view';
 
 // Types for price change data
 interface PriceChangeData {
@@ -315,7 +316,10 @@ export function SymbolDetailsDrawer({
                   <span>Google News</span>
                 </a>
                 <a
-                  href={`https://www.tradingview.com/chart/?symbol=${encodeURIComponent(`${selectedSymbolData ? (selectedSymbolData.exchange === 'TO' ? 'TSX' : 'TSXV') : 'TSX'}:${selectedSymbol.split('.')[0]}`)}`}
+                  href={generateTradingViewUrl({
+                    symbol: selectedSymbol,
+                    exchange: selectedSymbolData?.exchange || null
+                  })}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex flex-col items-center gap-1 p-2 text-xs text-[#373f51] hover:bg-[#f1f5f9] rounded-md transition-colors text-center"
