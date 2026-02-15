@@ -46,6 +46,7 @@ class YahooFinanceBatchFetcher {
     this.crumb = auth.crumb;
   }
 
+
   private async makeScreenerRequest(symbols: string[]): Promise<QuoteData[]> {
     return new Promise<QuoteData[]>((resolve, reject) => {
       const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols.join(',')}&crumb=${this.crumb}`;
@@ -93,7 +94,7 @@ class YahooFinanceBatchFetcher {
     });
   }
 
-  async fetchAllMarketSymbols(batchSize: number = 100): Promise<QuoteData[]> {
+  async fetchAllMarketSymbols(batchSize: number = 200): Promise<QuoteData[]> {
     const allSymbols: QuoteData[] = [];
     let offset = 0;
     let hasMore = true;
@@ -504,13 +505,14 @@ export async function POST(request: NextRequest) {
   try {
     const body: UpdateWarmSymbolsRequest = await request.json();
 
+
     // Validate required parameters
     if (!body.exchange) {
       return NextResponse.json({ error: 'Exchange parameter is required' }, { status: 400 });
     }
 
     // Validate exchange codes
-    const validExchanges = ['TOR', 'CNQ', 'NYQ', 'NMS', 'ASE', 'PCX'];
+    const validExchanges = ['TOR', 'VAN', 'NYQ', 'NMS', 'ASE', 'PCX'];
     if (!validExchanges.includes(body.exchange)) {
       return NextResponse.json({
         error: `Invalid exchange. Valid exchanges are: ${validExchanges.join(', ')}`

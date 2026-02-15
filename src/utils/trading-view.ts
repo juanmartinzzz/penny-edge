@@ -34,6 +34,9 @@ export function generateTradingViewUrl(symbolData: TradingViewSymbol): string {
       case 'V':
         tvExchange = 'TSXV';
         break;
+      case 'VAN':
+        tvExchange = 'TSXV'; // TSX Venture
+        break;
       case 'CNQ':
         tvExchange = 'TSXV'; // TSX Venture
         break;

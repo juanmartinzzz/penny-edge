@@ -10,7 +10,7 @@ import { SymbolDetailsDrawerV2 } from '@/components/SymbolDetailsDrawerV2';
 
 const EXCHANGE_OPTIONS = [
   'TOR - TSX (Toronto)',
-  'CNQ - TSXV (Venture)',
+  'VAN - TSXV (Venture)',
   'NYQ - NYSE',
   'NMS - NASDAQ',
   'ASE - AMEX',
