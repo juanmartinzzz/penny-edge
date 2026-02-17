@@ -54,7 +54,8 @@ export interface TextareaProps extends BaseProps {
 }
 
 export interface PillProps extends BaseProps {
-  label: string;
+  label?: string;
+  children?: React.ReactNode;
   selected?: boolean;
   onClick?: () => void;
   variant?: 'single' | 'multiple';

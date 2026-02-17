@@ -5,7 +5,10 @@ import Button from '@/components/interaction/Button';
 import NumericInput from '@/components/interaction/NumericInput';
 import PillList from '@/components/interaction/PillList';
 import Pill from '@/components/interaction/Pill';
+import HotnessScorePill from '@/components/ui/HotnessScorePill';
 import { SymbolDetailsDrawerV2 } from '@/components/SymbolDetailsDrawerV2';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { AveragePriceData } from '@/types/symbol';
 
 
 const EXCHANGE_OPTIONS = [
@@ -36,6 +39,10 @@ interface WarmSymbol {
   fifty_two_week_high: number | null;
   fifty_two_week_low: number | null;
   is_currently_warm: boolean;
+  hotness_score: number | null;
+  recent_prices: AveragePriceData | null;
+  last_updated_hotness_score?: string | null;
+  hotness_score_stale_after_minutes?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -79,6 +86,27 @@ export default function MarketSnapshotPage() {
   const [warmSymbols, setWarmSymbols] = useState<WarmSymbol[]>([]);
   const [isLoadingWarmSymbols, setIsLoadingWarmSymbols] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
+
+  // Hotness Score Calculation state
+  const [hotnessNumberOfDaysInPeriod, setHotnessNumberOfDaysInPeriod] = useState<string>('5');
+  const [hotnessAmountOfPeriods, setHotnessAmountOfPeriods] = useState<string>('6');
+  const [hotnessDropSensitivity, setHotnessDropSensitivity] = useState<string>('15');
+  const [hotnessDropMaxScore, setHotnessDropMaxScore] = useState<string>('70');
+  const [hotnessVolatilityThreshold, setHotnessVolatilityThreshold] = useState<string>('2.0');
+  const [hotnessVolatilityMaxBonus, setHotnessVolatilityMaxBonus] = useState<string>('30');
+  const [hotnessDowntrendPenalty, setHotnessDowntrendPenalty] = useState<string>('0.5');
+  const [hotnessStableMultiplier, setHotnessStableMultiplier] = useState<string>('0.7');
+  const [hotnessUptrendMultiplier, setHotnessUptrendMultiplier] = useState<string>('1.0');
+  const [hotnessTrendBoundary, setHotnessTrendBoundary] = useState<string>('3.0');
+  const [hotnessAverageTradedValueThreshold, setHotnessAverageTradedValueThreshold] = useState<string>('10000');
+  const [isRefreshingHotness, setIsRefreshingHotness] = useState(false);
+  const [hotnessRefreshProgress, setHotnessRefreshProgress] = useState<{
+    processed: number;
+    total: number;
+    currentSymbol: string;
+    errors: string[];
+  } | null>(null);
+  const [showAdvancedHotnessSettings, setShowAdvancedHotnessSettings] = useState(false);
 
   // Extract actual values from display strings
   const getExchangeCode = (display: string) => display.split(' - ')[0];
@@ -151,6 +179,105 @@ export default function MarketSnapshotPage() {
 
   const handleCloseDrawer = () => {
     setSelectedSymbol(null);
+  };
+
+  const handleRefreshHotnessScores = async () => {
+    setIsRefreshingHotness(true);
+    setHotnessRefreshProgress({ processed: 0, total: 0, currentSymbol: '', errors: [] });
+
+    try {
+      // Get current warm symbols with staleness info
+      const response = await fetch('/api/market-snapshot/warm-symbols?includeStaleness=true');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const result = await response.json();
+      const allWarmSymbols = result.warmSymbols || [];
+
+      // Filter symbols that need refreshing based on staleness
+      const now = new Date();
+      const symbolsToRefresh = allWarmSymbols.filter((symbol: WarmSymbol & { hotness_score_stale_after_minutes?: number; last_updated_hotness_score?: string }) => {
+        if (!symbol.last_updated_hotness_score) return true; // Never updated
+
+        const lastUpdated = new Date(symbol.last_updated_hotness_score);
+        const staleAfterMinutes = symbol.hotness_score_stale_after_minutes || 30;
+        const minutesDiff = (now.getTime() - lastUpdated.getTime()) / (1000 * 60);
+
+        return minutesDiff > staleAfterMinutes;
+      });
+
+      setHotnessRefreshProgress(prev => prev ? { ...prev, total: symbolsToRefresh.length } : null);
+
+      const errors: string[] = [];
+
+      for (let i = 0; i < symbolsToRefresh.length; i++) {
+        const symbol = symbolsToRefresh[i];
+        setHotnessRefreshProgress(prev => prev ? {
+          ...prev,
+          currentSymbol: symbol.symbol,
+          processed: i
+        } : null);
+
+        try {
+          const hotnessParams = {
+            dropSensitivity: parseFloat(hotnessDropSensitivity),
+            dropMaxScore: parseFloat(hotnessDropMaxScore),
+            volatilityThreshold: parseFloat(hotnessVolatilityThreshold),
+            volatilityMaxBonus: parseFloat(hotnessVolatilityMaxBonus),
+            downtrendPenalty: parseFloat(hotnessDowntrendPenalty),
+            stableMultiplier: parseFloat(hotnessStableMultiplier),
+            uptrendMultiplier: parseFloat(hotnessUptrendMultiplier),
+            trendBoundary: parseFloat(hotnessTrendBoundary),
+            averageTradedValueThreshold: parseFloat(hotnessAverageTradedValueThreshold),
+          };
+
+          const refreshResponse = await fetch(`/api/symbols-v2/update-prices-and-hotness/${symbol.id}`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              numberOfDaysInPeriod: parseInt(hotnessNumberOfDaysInPeriod),
+              amountOfPeriods: parseInt(hotnessAmountOfPeriods),
+              hotnessParams,
+            }),
+          });
+
+          if (!refreshResponse.ok) {
+            const errorData = await refreshResponse.json();
+            throw new Error(`Failed to refresh ${symbol.symbol}: ${errorData.error || refreshResponse.statusText}`);
+          }
+
+          // Wait 1 second before next call
+          if (i < symbolsToRefresh.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : `Unknown error for ${symbol.symbol}`;
+          console.error(errorMessage);
+          errors.push(errorMessage);
+        }
+      }
+
+      setHotnessRefreshProgress(prev => prev ? { ...prev, processed: symbolsToRefresh.length, errors } : null);
+
+      // Refresh warm symbols list after completion
+      await loadWarmSymbols();
+
+      if (errors.length > 0) {
+        alert(`Hotness score refresh completed with ${errors.length} errors. Check console for details.`);
+      } else {
+        alert(`Successfully refreshed hotness scores for ${symbolsToRefresh.length} symbols.`);
+      }
+    } catch (error) {
+      console.error('Error refreshing hotness scores:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to refresh hotness scores';
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setIsRefreshingHotness(false);
+      // Clear progress after a delay
+      setTimeout(() => setHotnessRefreshProgress(null), 3000);
+    }
   };
 
   return (
@@ -284,12 +411,233 @@ export default function MarketSnapshotPage() {
             </div>
           </div>
 
+          {/* Calculate Hotness Score Section */}
+          <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Calculate Hotness Score
+              </h2>
+              <div className="text-sm text-gray-700">
+                <span className="font-medium">Total warm symbols:</span> {warmSymbols.length.toLocaleString()}
+              </div>
+            </div>
+
+            {/* Configuration Section */}
+            <div className="space-y-6 mb-6">
+              {/* Basic Parameters */}
+              <div className="flex flex-wrap gap-6">
+                <div className="flex-1 min-w-0">
+                  <NumericInput
+                    label="Number of Days in Period"
+                    min={1}
+                    max={30}
+                    value={hotnessNumberOfDaysInPeriod}
+                    onChange={setHotnessNumberOfDaysInPeriod}
+                    placeholder="5"
+                    center={true}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <NumericInput
+                    label="Amount of Periods"
+                    min={2}
+                    max={20}
+                    value={hotnessAmountOfPeriods}
+                    onChange={setHotnessAmountOfPeriods}
+                    placeholder="6"
+                    center={true}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <NumericInput
+                    label="Avg Traded Value Threshold"
+                    min={0}
+                    value={hotnessAverageTradedValueThreshold}
+                    onChange={setHotnessAverageTradedValueThreshold}
+                    placeholder="10000"
+                    formatAsKMB={true}
+                    center={true}
+                  />
+                </div>
+              </div>
+
+              {/* Advanced Settings Toggle */}
+              <div className="border-t border-gray-200 pt-4">
+                <button
+                  onClick={() => setShowAdvancedHotnessSettings(!showAdvancedHotnessSettings)}
+                  className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+                >
+                  {showAdvancedHotnessSettings ? (
+                    <>
+                      <ChevronUp className="w-4 h-4" />
+                      Hide Advanced Settings
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-4 h-4" />
+                      Show Advanced Settings
+                    </>
+                  )}
+                </button>
+
+                {/* Advanced Settings */}
+                {showAdvancedHotnessSettings && (
+                  <div className="mt-4 space-y-6">
+                    {/* Row 1: Drop Parameters */}
+                    <div className="flex flex-wrap gap-6">
+                      <div className="flex-1 min-w-0">
+                        <NumericInput
+                          label="Drop Sensitivity"
+                          min={1}
+                          max={50}
+                          value={hotnessDropSensitivity}
+                          onChange={setHotnessDropSensitivity}
+                          placeholder="15"
+                          center={true}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <NumericInput
+                          label="Drop Max Score"
+                          min={10}
+                          max={100}
+                          value={hotnessDropMaxScore}
+                          onChange={setHotnessDropMaxScore}
+                          placeholder="70"
+                          center={true}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 2: Volatility Parameters */}
+                    <div className="flex flex-wrap gap-6">
+                      <div className="flex-1 min-w-0">
+                        <NumericInput
+                          label="Volatility Threshold"
+                          min={0.1}
+                          max={10.0}
+                          value={hotnessVolatilityThreshold}
+                          onChange={setHotnessVolatilityThreshold}
+                          placeholder="2.0"
+                          center={true}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <NumericInput
+                          label="Volatility Max Bonus"
+                          min={5}
+                          max={50}
+                          value={hotnessVolatilityMaxBonus}
+                          onChange={setHotnessVolatilityMaxBonus}
+                          placeholder="30"
+                          center={true}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 3: Trend Parameters */}
+                    <div className="flex flex-wrap gap-6">
+                      <div className="flex-1 min-w-0">
+                        <NumericInput
+                          label="Downtrend Penalty"
+                          min={0.1}
+                          max={1.0}
+                          value={hotnessDowntrendPenalty}
+                          onChange={setHotnessDowntrendPenalty}
+                          placeholder="0.5"
+                          center={true}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <NumericInput
+                          label="Stable Multiplier"
+                          min={0.1}
+                          max={1.0}
+                          value={hotnessStableMultiplier}
+                          onChange={setHotnessStableMultiplier}
+                          placeholder="0.7"
+                          center={true}
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <NumericInput
+                          label="Uptrend Multiplier"
+                          min={0.1}
+                          max={2.0}
+                          value={hotnessUptrendMultiplier}
+                          onChange={setHotnessUptrendMultiplier}
+                          placeholder="1.0"
+                          center={true}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 4: Boundary Parameters */}
+                    <div className="flex flex-wrap gap-6">
+                      <div className="flex-1 min-w-0">
+                        <NumericInput
+                          label="Trend Boundary"
+                          min={1.0}
+                          max={10.0}
+                          value={hotnessTrendBoundary}
+                          onChange={setHotnessTrendBoundary}
+                          placeholder="3.0"
+                          center={true}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Button and Progress */}
+            <div className="mt-6">
+              <Button
+                variant="secondary"
+                size="md"
+                onClick={handleRefreshHotnessScores}
+                disabled={isRefreshingHotness || warmSymbols.length === 0}
+                className="w-full md:w-auto"
+              >
+                {isRefreshingHotness ? 'Refreshing Hotness Scores...' : 'Refresh Hotness Scores'}
+              </Button>
+
+              {hotnessRefreshProgress && (
+                <div className="mt-4 p-4 bg-gray-50 rounded-md">
+                  <div className="text-sm text-gray-700 mb-2">
+                    <span className="font-medium">Progress:</span> {hotnessRefreshProgress.processed} / {hotnessRefreshProgress.total} symbols
+                  </div>
+                  {hotnessRefreshProgress.currentSymbol && (
+                    <div className="text-sm text-gray-700 mb-2">
+                      <span className="font-medium">Current:</span> {hotnessRefreshProgress.currentSymbol}
+                    </div>
+                  )}
+                  <div className="w-full bg-gray-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${hotnessRefreshProgress.total > 0 ? (hotnessRefreshProgress.processed / hotnessRefreshProgress.total) * 100 : 0}%` }}
+                    ></div>
+                  </div>
+                  {hotnessRefreshProgress.errors.length > 0 && (
+                    <div className="text-sm text-red-600 mt-2">
+                      <span className="font-medium">Errors:</span> {hotnessRefreshProgress.errors.length}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {/* Warm Symbols Section */}
           <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-gray-900">
-                Warm Symbols ({warmSymbols.length})
+                Warm Symbols
               </h2>
+              <div className="text-sm text-gray-700">
+                <span className="font-medium">Total warm symbols:</span> 96
+              </div>
               {isLoadingWarmSymbols && (
                 <div className="text-sm text-gray-500">Loading...</div>
               )}
@@ -300,11 +648,15 @@ export default function MarketSnapshotPage() {
                 {warmSymbols.map((symbol) => (
                   <Pill
                     key={symbol.id}
-                    label={symbol.symbol}
                     size="xs"
                     onClick={() => handleSymbolClick(symbol.symbol)}
                     className="cursor-pointer"
-                  />
+                  >
+                    <div className="flex items-center gap-1">
+                      <span>{symbol.symbol}</span>
+                      <HotnessScorePill score={symbol.hotness_score} size="xs" />
+                    </div>
+                  </Pill>
                 ))}
               </div>
             ) : (

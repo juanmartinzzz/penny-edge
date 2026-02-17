@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, SYMBOLS_V2_TABLE } from '@/lib/supabase';
+import { AveragePriceData } from '@/types/symbol';
 
-interface WarmSymbol {
+interface BaseWarmSymbol {
   id: string;
   symbol: string;
   short_name: string | null;
@@ -24,14 +25,30 @@ interface WarmSymbol {
   updated_at: string;
 }
 
+interface WarmSymbol extends BaseWarmSymbol {
+  hotness_score?: number | null;
+  recent_prices?: AveragePriceData | null;
+  last_updated_hotness_score?: string | null;
+  hotness_score_stale_after_minutes?: number | null;
+}
+
 export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const includeStaleness = searchParams.get('includeStaleness') === 'true';
+
+    // Determine which fields to select
+    const selectFields = includeStaleness
+      ? '*'
+      : 'id, symbol, short_name, long_name, exchange, currency, quote_type, regular_market_price, regular_market_change, regular_market_change_percent, market_cap, regular_market_volume, average_daily_volume_10day, average_daily_volume_3month, fifty_day_average, fifty_two_week_high, fifty_two_week_low, is_currently_warm, hotness_score, recent_prices, created_at, updated_at';
+
     // Fetch all warm symbols from the database
     const { data: warmSymbols, error } = await supabaseAdmin
       .from(SYMBOLS_V2_TABLE)
-      .select('*')
+      .select(selectFields)
       .eq('is_currently_warm', true)
       .is('deleted_at', null)
+      .order('hotness_score', { ascending: false, nullsFirst: false })
       .order('symbol', { ascending: true });
 
     if (error) {
@@ -43,7 +60,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({
-      warmSymbols: warmSymbols as WarmSymbol[],
+      warmSymbols: (warmSymbols as any) || [],
       count: warmSymbols?.length || 0
     });
 

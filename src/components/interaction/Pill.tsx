@@ -3,6 +3,7 @@ import { PillProps } from './types';
 
 const Pill = forwardRef<HTMLButtonElement, PillProps>(({
   label,
+  children,
   selected = false,
   onClick,
   variant = 'single',
@@ -37,7 +38,7 @@ const Pill = forwardRef<HTMLButtonElement, PillProps>(({
       className={`${baseClasses} ${sizeClasses[size]} ${stateClasses} ${interactionClasses} ${className}`}
       {...props}
     >
-      {label}
+      {children || label}
     </button>
   );
 });

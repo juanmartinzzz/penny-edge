@@ -5,6 +5,7 @@ import { Drawer } from '@/components/ui/Drawer';
 import { generateTradingViewUrl } from '@/utils/trading-view';
 import Pill from '@/components/interaction/Pill';
 import { formatHumanDate } from '@/utils/date';
+import { AveragePriceData } from '@/types/symbol';
 
 interface WarmSymbol {
   id: string;
@@ -25,6 +26,8 @@ interface WarmSymbol {
   fifty_two_week_high: number | null;
   fifty_two_week_low: number | null;
   is_currently_warm: boolean;
+  hotness_score: number | null;
+  recent_prices: AveragePriceData | null;
   created_at: string;
   updated_at: string;
 }
@@ -274,6 +277,63 @@ export function SymbolDetailsDrawerV2({
               </a>
             </div>
           </div>
+
+          {/* Recent Prices */}
+          {selectedSymbolData.recent_prices?.periods && Array.isArray(selectedSymbolData.recent_prices.periods) && selectedSymbolData.recent_prices.periods.length > 0 && (
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                <TrendingUp size={20} />
+                Recent Price Periods
+              </h3>
+              <div className="bg-gray-50 rounded-md p-4 max-h-64 overflow-y-auto">
+                <div className="space-y-3">
+                  {selectedSymbolData.recent_prices.periods.slice(0, 8).map((period: any, index: number) => (
+                    <div key={index} className="border-b border-gray-200 pb-2 last:border-b-0">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm font-medium text-gray-900">
+                          {period.name}
+                        </span>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          period.direction === 'up' ? 'bg-green-100 text-green-800' :
+                          period.direction === 'down' ? 'bg-red-100 text-red-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {period.changePercent !== undefined ? `${period.changePercent >= 0 ? '+' : ''}${period.changePercent.toFixed(1)}%` : 'N/A'}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <span className="text-gray-700">Avg Price:</span>
+                          <span className="font-medium text-gray-900 ml-1">{formatCurrency(period.averagePrice, selectedSymbolData.currency || 'CAD')}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-700">Avg Volume:</span>
+                          <span className="font-medium text-gray-900 ml-1">{formatNumber(period.averageVolume)}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-700">High:</span>
+                          <span className="font-medium text-gray-900 ml-1">{formatCurrency(period.highestPrice, selectedSymbolData.currency || 'CAD')}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-700">Low:</span>
+                          <span className="font-medium text-gray-900 ml-1">{formatCurrency(period.lowestPrice, selectedSymbolData.currency || 'CAD')}</span>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-700">Avg Traded Value:</span>
+                          <span className="font-medium text-gray-900 ml-1">{formatCurrency(period.averageTradedValue, selectedSymbolData.currency || 'CAD')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {selectedSymbolData.recent_prices.periods.length > 8 && (
+                    <div className="text-xs text-gray-500 text-center pt-2 border-t">
+                      Showing first 8 of {selectedSymbolData.recent_prices.periods.length} periods
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Metadata */}
           <div>

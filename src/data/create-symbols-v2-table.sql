@@ -5,6 +5,16 @@ CREATE TABLE IF NOT EXISTS penny_edge_symbols_v2 (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   is_currently_warm BOOLEAN DEFAULT FALSE,
 
+  -- Detailed recent prices data
+  -- Structure: { -please update this- }
+  recent_prices JSONB, 
+  last_updated_recent_prices TIMESTAMP WITH TIME ZONE,
+
+  -- Represents how much interest an asset has in a scale from 0 to 100
+  hotness_score INT,
+  last_updated_hotness_score TIMESTAMP WITH TIME ZONE,
+  hotness_score_stale_after_minutes INT DEFAULT 30,
+
   -- Basic symbol information
   symbol TEXT NOT NULL,
   short_name TEXT,
@@ -34,7 +44,6 @@ CREATE TABLE IF NOT EXISTS penny_edge_symbols_v2 (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   deleted_at TIMESTAMP WITH TIME ZONE
 );
-
 -- Create unique index on symbol to prevent duplicates
 CREATE UNIQUE INDEX IF NOT EXISTS idx_penny_edge_symbols_v2_symbol ON penny_edge_symbols_v2(symbol) WHERE deleted_at IS NULL;
 
