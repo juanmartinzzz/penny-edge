@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, SYMBOLS_V2_TABLE } from '@/lib/supabase';
-import { getAveragePrices, calculateHotnessScore, DEFAULT_HOTNESS_PARAMS } from '@/lib/price-service';
+import { getAveragePrices, calculateHotnessScore, calculateHotnessScoreV2, DEFAULT_HOTNESS_PARAMS } from '@/lib/price-service';
 
 interface UpdatePricesAndHotnessRequest {
   numberOfDaysInPeriod?: number;
   amountOfPeriods?: number;
+  hotnessVersion?: 'v1' | 'v2';
   hotnessParams?: typeof DEFAULT_HOTNESS_PARAMS;
 }
 
@@ -25,6 +26,7 @@ export async function POST(
     const {
       numberOfDaysInPeriod = 7,
       amountOfPeriods = 8,
+      hotnessVersion = 'v1',
       hotnessParams = DEFAULT_HOTNESS_PARAMS
     } = body;
 
@@ -81,8 +83,9 @@ export async function POST(
       try {
         // Extract periods from most recent to oldest (reverse chronological order for hotness calculation)
         const periods = priceData.periods.slice().reverse();
-        hotnessScore = Math.round(calculateHotnessScore(periods, hotnessParams));
-        console.log(`Calculated hotness score: ${hotnessScore}`);
+        const calculationFunction = hotnessVersion === 'v2' ? calculateHotnessScoreV2 : calculateHotnessScore;
+        hotnessScore = Math.round(calculationFunction(periods, hotnessParams));
+        console.log(`Calculated hotness score (v${hotnessVersion}): ${hotnessScore}`);
       } catch (error) {
         console.error(`Error calculating hotness score for ${symbolData.symbol}:`, error);
         // Continue without hotness score rather than failing
@@ -144,6 +147,7 @@ export async function POST(
       },
       hotnessScore: {
         score: hotnessScore,
+        version: hotnessVersion,
         parameters: hotnessParams
       }
     });

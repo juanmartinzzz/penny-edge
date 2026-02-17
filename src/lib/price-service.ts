@@ -283,3 +283,51 @@ export function calculateHotnessScore(
 
   return Math.round(hotnessScore * 100) / 100; // Round to 2 decimal places
 }
+
+// V2: Calculate hotness score focused on recent sharp drops
+// - No trading volume penalties for low-volume stocks
+// - Scores high only when most recent period has dropped vs all past periods
+export function calculateHotnessScoreV2(
+  periods: AveragePricePeriod[],
+  params: HotnessScoreParams = DEFAULT_HOTNESS_PARAMS
+): number {
+  // Input validation
+  if (!Array.isArray(periods) || periods.length < 2) {
+    throw new Error('Periods array must contain at least 2 values');
+  }
+
+  // Extract average prices (we don't need traded values for V2)
+  const averagePrices = periods.map(p => p.averagePrice);
+
+  // Ensure all values are valid numbers
+  const validPrices = averagePrices.filter(price => typeof price === 'number' && !isNaN(price));
+  if (validPrices.length < 2) {
+    throw new Error('At least 2 valid price values required');
+  }
+
+  const N = validPrices.length;
+
+  // Step 1: Calculate Historical Average (all periods except most recent)
+  const historicalAvg = validPrices.slice(1).reduce((sum, price) => sum + price, 0) / (N - 1);
+
+  // Step 2: Get most recent price
+  const mostRecentPrice = validPrices[0];
+
+  // Step 3: Calculate Drop Percentage
+  const dropPercentage = ((historicalAvg - mostRecentPrice) / historicalAvg) * 100;
+
+  // Early return for no drop case
+  if (dropPercentage <= 0) {
+    return 0;
+  }
+
+  // Step 4: Calculate Drop Score
+  // Score is based purely on how much the most recent period has dropped vs historical average
+  const dropScore = Math.min(params.dropMaxScore, dropPercentage * params.dropSensitivity);
+
+  // Step 5: Calculate Final Hotness Score
+  // V2: No volatility modifiers or trading volume penalties - pure focus on recent drops
+  const hotnessScore = Math.min(100, dropScore);
+
+  return Math.round(hotnessScore * 100) / 100; // Round to 2 decimal places
+}

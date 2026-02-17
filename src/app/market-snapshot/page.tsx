@@ -99,6 +99,7 @@ export default function MarketSnapshotPage() {
   const [hotnessUptrendMultiplier, setHotnessUptrendMultiplier] = useState<string>('1.0');
   const [hotnessTrendBoundary, setHotnessTrendBoundary] = useState<string>('3.0');
   const [hotnessAverageTradedValueThreshold, setHotnessAverageTradedValueThreshold] = useState<string>('10000');
+  const [hotnessVersion, setHotnessVersion] = useState<'v1' | 'v2'>('v2');
   const [isRefreshingHotness, setIsRefreshingHotness] = useState(false);
   const [hotnessRefreshProgress, setHotnessRefreshProgress] = useState<{
     processed: number;
@@ -239,6 +240,7 @@ export default function MarketSnapshotPage() {
             body: JSON.stringify({
               numberOfDaysInPeriod: parseInt(hotnessNumberOfDaysInPeriod),
               amountOfPeriods: parseInt(hotnessAmountOfPeriods),
+              hotnessVersion,
               hotnessParams,
             }),
           });
@@ -449,14 +451,21 @@ export default function MarketSnapshotPage() {
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <NumericInput
-                    label="Avg Traded Value Threshold"
-                    min={0}
-                    value={hotnessAverageTradedValueThreshold}
-                    onChange={setHotnessAverageTradedValueThreshold}
-                    placeholder="10000"
-                    formatAsKMB={true}
-                    center={true}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Hotness Algorithm Version
+                  </label>
+                  <PillList
+                    options={['V1', 'V2']}
+                    selected={hotnessVersion === 'v1' ? ['V1'] : ['V2']}
+                    onChange={(selected) => {
+                      if (selected.includes('V1')) {
+                        setHotnessVersion('v1');
+                      } else if (selected.includes('V2')) {
+                        setHotnessVersion('v2');
+                      }
+                    }}
+                    variant="single"
+                    size="sm"
                   />
                 </div>
               </div>
@@ -582,6 +591,21 @@ export default function MarketSnapshotPage() {
                           value={hotnessTrendBoundary}
                           onChange={setHotnessTrendBoundary}
                           placeholder="3.0"
+                          center={true}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Row 5: Trading Value Threshold */}
+                    <div className="flex flex-wrap gap-6">
+                      <div className="flex-1 min-w-0">
+                        <NumericInput
+                          label="Avg Traded Value Threshold"
+                          min={0}
+                          value={hotnessAverageTradedValueThreshold}
+                          onChange={setHotnessAverageTradedValueThreshold}
+                          placeholder="10000"
+                          formatAsKMB={true}
                           center={true}
                         />
                       </div>
