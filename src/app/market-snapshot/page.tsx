@@ -42,7 +42,6 @@ interface WarmSymbol {
   hotness_score: number | null;
   recent_prices: AveragePriceData | null;
   last_updated_hotness_score?: string | null;
-  hotness_score_stale_after_minutes?: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -99,6 +98,7 @@ export default function MarketSnapshotPage() {
   const [hotnessUptrendMultiplier, setHotnessUptrendMultiplier] = useState<string>('1.0');
   const [hotnessTrendBoundary, setHotnessTrendBoundary] = useState<string>('3.0');
   const [hotnessAverageTradedValueThreshold, setHotnessAverageTradedValueThreshold] = useState<string>('10000');
+  const [hotnessStaleAfterMinutes, setHotnessStaleAfterMinutes] = useState<string>('30');
   const [hotnessVersion, setHotnessVersion] = useState<'v1' | 'v2'>('v2');
   const [isRefreshingHotness, setIsRefreshingHotness] = useState(false);
   const [hotnessRefreshProgress, setHotnessRefreshProgress] = useState<{
@@ -187,8 +187,8 @@ export default function MarketSnapshotPage() {
     setHotnessRefreshProgress({ processed: 0, total: 0, currentSymbol: '', errors: [] });
 
     try {
-      // Get current warm symbols with staleness info
-      const response = await fetch('/api/market-snapshot/warm-symbols?includeStaleness=true');
+      // Get current warm symbols
+      const response = await fetch('/api/market-snapshot/warm-symbols');
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -197,11 +197,11 @@ export default function MarketSnapshotPage() {
 
       // Filter symbols that need refreshing based on staleness
       const now = new Date();
-      const symbolsToRefresh = allWarmSymbols.filter((symbol: WarmSymbol & { hotness_score_stale_after_minutes?: number; last_updated_hotness_score?: string }) => {
+      const staleAfterMinutes = parseInt(hotnessStaleAfterMinutes) || 30;
+      const symbolsToRefresh = allWarmSymbols.filter((symbol) => {
         if (!symbol.last_updated_hotness_score) return true; // Never updated
 
         const lastUpdated = new Date(symbol.last_updated_hotness_score);
-        const staleAfterMinutes = symbol.hotness_score_stale_after_minutes || 30;
         const minutesDiff = (now.getTime() - lastUpdated.getTime()) / (1000 * 60);
 
         return minutesDiff > staleAfterMinutes;
@@ -447,6 +447,17 @@ export default function MarketSnapshotPage() {
                     value={hotnessAmountOfPeriods}
                     onChange={setHotnessAmountOfPeriods}
                     placeholder="6"
+                    center={true}
+                  />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <NumericInput
+                    label="Stale After Minutes"
+                    min={1}
+                    max={1440}
+                    value={hotnessStaleAfterMinutes}
+                    onChange={setHotnessStaleAfterMinutes}
+                    placeholder="30"
                     center={true}
                   />
                 </div>

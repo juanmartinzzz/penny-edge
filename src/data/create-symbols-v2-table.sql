@@ -44,6 +44,10 @@ CREATE TABLE IF NOT EXISTS penny_edge_symbols_v2 (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   deleted_at TIMESTAMP WITH TIME ZONE
 );
+
+-- Reset the hotness score and recent prices for all symbols
+UPDATE penny_edge_symbols_v2 SET hotness_score = NULL, recent_prices = NULL, last_updated_recent_prices = NULL, last_updated_hotness_score = NULL;
+
 -- Create unique index on symbol to prevent duplicates
 CREATE UNIQUE INDEX IF NOT EXISTS idx_penny_edge_symbols_v2_symbol ON penny_edge_symbols_v2(symbol) WHERE deleted_at IS NULL;
 
