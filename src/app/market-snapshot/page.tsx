@@ -54,6 +54,7 @@ export default function MarketSnapshotPage() {
   const [minAvgVolume3m, setMinAvgVolume3m] = useState<string>('800000');
   const [minComputationValue, setMinComputationValue] = useState<string>('1500000');
   const [isWarming, setIsWarming] = useState(false);
+  const [showWarmFilters, setShowWarmFilters] = useState(false);
   const [warmFiltersResult, setWarmFiltersResult] = useState<{
     totalSymbols: number;
     warmSymbols: number;
@@ -297,10 +298,26 @@ export default function MarketSnapshotPage() {
 
           {/* Warm Symbol Filters */}
           <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">
-              Warm Symbol Filters
-            </h2>
-            <div className="space-y-6 mb-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-gray-900">
+                Warm Symbol Filters
+              </h2>
+              <Button
+                variant="ghost"
+                size="xs"
+                onClick={() => setShowWarmFilters(!showWarmFilters)}
+                className="p-2"
+              >
+                {showWarmFilters ? (
+                  <ChevronUp className="w-5 h-5" />
+                ) : (
+                  <ChevronDown className="w-5 h-5" />
+                )}
+              </Button>
+            </div>
+            {showWarmFilters && (
+              <>
+                <div className="space-y-6 mb-6 mt-6">
               {/* Row 1: Exchange Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -411,6 +428,8 @@ export default function MarketSnapshotPage() {
                 </div>
               )}
             </div>
+              </>
+            )}
           </div>
 
           {/* Calculate Hotness Score Section */}
