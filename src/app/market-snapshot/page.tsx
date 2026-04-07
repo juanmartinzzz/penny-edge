@@ -690,7 +690,7 @@ export default function MarketSnapshotPage() {
                 Warm Symbols
               </h2>
               <div className="text-sm text-gray-700">
-                <span className="font-medium">Total warm symbols:</span> 96
+                <span className="font-medium">Total warm symbols:</span> {warmSymbols.length.toLocaleString()}
               </div>
               {isLoadingWarmSymbols && (
                 <div className="text-sm text-gray-500">Loading...</div>
