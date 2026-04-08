@@ -298,24 +298,6 @@ export function SymbolDetailsDrawer({
               </h3>
               <div className="grid grid-cols-3 gap-2">
                 <a
-                  href={`https://www.google.com/search?q=${encodeURIComponent(selectedSymbol)}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex flex-col items-center gap-1 p-2 text-xs text-[#373f51] hover:bg-[#f1f5f9] rounded-md transition-colors text-center"
-                >
-                  <Search size={14} />
-                  <span>Google Search</span>
-                </a>
-                <a
-                  href={`https://www.google.com/search?q=${encodeURIComponent(`${selectedSymbol} ${selectedSymbolData?.name || ''}`.trim())}&tbm=nws`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex flex-col items-center gap-1 p-2 text-xs text-[#373f51] hover:bg-[#f1f5f9] rounded-md transition-colors text-center"
-                >
-                  <Newspaper size={14} />
-                  <span>Google News</span>
-                </a>
-                <a
                   href={generateTradingViewUrl({
                     symbol: selectedSymbol,
                     exchange: selectedSymbolData?.exchange || null
@@ -327,6 +309,24 @@ export function SymbolDetailsDrawer({
                   <TrendingUp size={14} />
                   <span>TradingView</span>
                 </a>
+              <a
+                href={`https://www.google.com/search?q=${encodeURIComponent(`${selectedSymbol} ${selectedSymbolData?.name || ''}`.trim())}&tbm=nws`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col items-center gap-1 p-2 text-xs text-[#373f51] hover:bg-[#f1f5f9] rounded-md transition-colors text-center"
+              >
+                <Newspaper size={14} />
+                <span>Google News</span>
+              </a>
+              <a
+                href={`https://www.google.com/search?q=${encodeURIComponent(selectedSymbol)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex flex-col items-center gap-1 p-2 text-xs text-[#373f51] hover:bg-[#f1f5f9] rounded-md transition-colors text-center"
+              >
+                <Search size={14} />
+                <span>Google Search</span>
+              </a>
               </div>
             </div>
 

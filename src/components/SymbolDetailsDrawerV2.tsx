@@ -246,13 +246,16 @@ export function SymbolDetailsDrawerV2({
             </h3>
             <div className="grid grid-cols-3 gap-2">
               <a
-                href={`https://www.google.com/search?q=${encodeURIComponent(selectedSymbol)}`}
+                href={generateTradingViewUrl({
+                  symbol: selectedSymbol,
+                  exchange: selectedSymbolData.exchange
+                })}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-col items-center gap-1 p-2 text-xs text-[#373f51] hover:bg-[#f1f5f9] rounded-md transition-colors text-center"
               >
-                <Search size={14} />
-                <span>Google Search</span>
+                <TrendingUp size={14} />
+                <span>TradingView</span>
               </a>
               <a
                 href={`https://www.google.com/search?q=${encodeURIComponent(`${selectedSymbol} ${selectedSymbolData.long_name || selectedSymbolData.short_name || ''}`.trim())}&tbm=nws`}
@@ -264,16 +267,13 @@ export function SymbolDetailsDrawerV2({
                 <span>Google News</span>
               </a>
               <a
-                href={generateTradingViewUrl({
-                  symbol: selectedSymbol,
-                  exchange: selectedSymbolData.exchange
-                })}
+                href={`https://www.google.com/search?q=${encodeURIComponent(selectedSymbol)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex flex-col items-center gap-1 p-2 text-xs text-[#373f51] hover:bg-[#f1f5f9] rounded-md transition-colors text-center"
               >
-                <TrendingUp size={14} />
-                <span>TradingView</span>
+                <Search size={14} />
+                <span>Google Search</span>
               </a>
             </div>
           </div>
