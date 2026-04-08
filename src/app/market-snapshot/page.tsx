@@ -9,6 +9,7 @@ import HotnessScorePill from '@/components/ui/HotnessScorePill';
 import { SymbolDetailsDrawerV2 } from '@/components/SymbolDetailsDrawerV2';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { AveragePriceData } from '@/types/symbol';
+import { generateTradingViewUrl } from '@/utils/trading-view';
 
 
 const EXCHANGE_OPTIONS = [
@@ -175,8 +176,12 @@ export default function MarketSnapshotPage() {
     loadWarmSymbols();
   }, []);
 
-  const handleSymbolClick = (symbol: string) => {
-    setSelectedSymbol(symbol);
+  const handleSymbolClick = (symbol: WarmSymbol) => {
+    const tradingViewUrl = generateTradingViewUrl({
+      symbol: symbol.symbol,
+      exchange: symbol.exchange
+    });
+    window.open(tradingViewUrl, '_blank', 'noopener,noreferrer');
   };
 
   const handleCloseDrawer = () => {
@@ -703,7 +708,7 @@ export default function MarketSnapshotPage() {
                   <Pill
                     key={symbol.id}
                     size="xs"
-                    onClick={() => handleSymbolClick(symbol.symbol)}
+                    onClick={() => handleSymbolClick(symbol)}
                     className="cursor-pointer"
                   >
                     <div className="flex items-center gap-1">
@@ -725,7 +730,8 @@ export default function MarketSnapshotPage() {
         </div>
       </div>
 
-      {/* Symbol Details Drawer */}
+      {/* Symbol Details Drawer (temporarily not opened from symbol chips).
+          Kept for future reuse when needed. */}
       <SymbolDetailsDrawerV2
         selectedSymbol={selectedSymbol}
         selectedSymbolData={selectedSymbol ? warmSymbols.find(s => s.symbol === selectedSymbol) || null : null}
