@@ -291,6 +291,8 @@ export function calculateHotnessScoreV2(
   periods: AveragePricePeriod[],
   params: HotnessScoreParams = DEFAULT_HOTNESS_PARAMS
 ): number {
+  console.log('[calculateHotnessScoreV2] periods input:', periods);
+
   // Input validation
   if (!Array.isArray(periods) || periods.length < 2) {
     throw new Error('Periods array must contain at least 2 values');
