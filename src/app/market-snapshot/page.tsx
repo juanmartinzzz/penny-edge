@@ -539,6 +539,9 @@ export default function MarketSnapshotPage() {
                           placeholder="15"
                           center={true}
                         />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Higher values make the score rise faster on smaller price drops.
+                        </p>
                       </div>
                       <div className="flex-1 min-w-0">
                         <NumericInput
@@ -550,6 +553,9 @@ export default function MarketSnapshotPage() {
                           placeholder="70"
                           center={true}
                         />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Caps how many points can come from the drop part of the score.
+                        </p>
                       </div>
                     </div>
 
@@ -565,6 +571,9 @@ export default function MarketSnapshotPage() {
                           placeholder="2.0"
                           center={true}
                         />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Volatility must be at least this much before extra bonus points are possible.
+                        </p>
                       </div>
                       <div className="flex-1 min-w-0">
                         <NumericInput
@@ -576,6 +585,9 @@ export default function MarketSnapshotPage() {
                           placeholder="30"
                           center={true}
                         />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Limits the total bonus you can earn from volatility.
+                        </p>
                       </div>
                     </div>
 
@@ -591,6 +603,9 @@ export default function MarketSnapshotPage() {
                           placeholder="0.5"
                           center={true}
                         />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Reduces volatility bonus for stocks still trending down to be more cautious.
+                        </p>
                       </div>
                       <div className="flex-1 min-w-0">
                         <NumericInput
@@ -602,6 +617,9 @@ export default function MarketSnapshotPage() {
                           placeholder="0.7"
                           center={true}
                         />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Gives a middle-level volatility bonus when price is neither up nor down enough.
+                        </p>
                       </div>
                       <div className="flex-1 min-w-0">
                         <NumericInput
@@ -613,6 +631,9 @@ export default function MarketSnapshotPage() {
                           placeholder="1.0"
                           center={true}
                         />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Gives the biggest volatility bonus to stocks in a positive trend.
+                        </p>
                       </div>
                     </div>
 
@@ -628,6 +649,9 @@ export default function MarketSnapshotPage() {
                           placeholder="3.0"
                           center={true}
                         />
+                        <p className="mt-1 text-xs text-gray-500">
+                          Defines how much price movement is needed before it counts as clearly up or down.
+                        </p>
                       </div>
                     </div>
 
@@ -643,6 +667,9 @@ export default function MarketSnapshotPage() {
                           formatAsKMB={true}
                           center={true}
                         />
+                        <p className="mt-1 text-xs text-gray-500">
+                          If all periods are below this volume-value floor, the final score is cut in half.
+                        </p>
                       </div>
                     </div>
                   </div>
