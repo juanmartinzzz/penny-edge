@@ -89,8 +89,8 @@ export default function MarketSnapshotPage() {
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
 
   // Hotness Score Calculation state
-  const [hotnessNumberOfDaysInPeriod, setHotnessNumberOfDaysInPeriod] = useState<string>('5');
-  const [hotnessAmountOfPeriods, setHotnessAmountOfPeriods] = useState<string>('6');
+  const [hotnessNumberOfDaysInPeriod, setHotnessNumberOfDaysInPeriod] = useState<string>('3');
+  const [hotnessAmountOfPeriods, setHotnessAmountOfPeriods] = useState<string>('10');
   const [hotnessDropSensitivity, setHotnessDropSensitivity] = useState<string>('15');
   const [hotnessDropMaxScore, setHotnessDropMaxScore] = useState<string>('70');
   const [hotnessVolatilityThreshold, setHotnessVolatilityThreshold] = useState<string>('2.0');
@@ -459,7 +459,7 @@ export default function MarketSnapshotPage() {
                     max={30}
                     value={hotnessNumberOfDaysInPeriod}
                     onChange={setHotnessNumberOfDaysInPeriod}
-                    placeholder="5"
+                    placeholder="3"
                     center={true}
                   />
                 </div>
@@ -470,7 +470,7 @@ export default function MarketSnapshotPage() {
                     max={20}
                     value={hotnessAmountOfPeriods}
                     onChange={setHotnessAmountOfPeriods}
-                    placeholder="6"
+                    placeholder="10"
                     center={true}
                   />
                 </div>
