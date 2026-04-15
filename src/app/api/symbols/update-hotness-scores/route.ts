@@ -68,10 +68,9 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        // Extract periods from most recent to oldest
+        // Use periods in stored order (most recent first)
         const periods = symbol.recent_prices.periods
-          .slice() // Create a copy
-          .reverse(); // Most recent first
+          .slice(); // getAveragePrices already stores most-recent first
 
         // Calculate hotness score
         const hotnessScore = calculateHotnessScore(periods, params);

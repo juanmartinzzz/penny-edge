@@ -81,8 +81,8 @@ export async function POST(
     let hotnessScore = null;
     if (priceData.periods.length >= 2) {
       try {
-        // Extract periods from most recent to oldest (reverse chronological order for hotness calculation)
-        const periods = priceData.periods.slice().reverse();
+        // getAveragePrices returns periods in most-recent-first order
+        const periods = priceData.periods.slice();
         const calculationFunction = hotnessVersion === 'v2' ? calculateHotnessScoreV2 : calculateHotnessScore;
         hotnessScore = Math.round(calculationFunction(periods, hotnessParams));
         console.log(`Calculated hotness score (v${hotnessVersion}): ${hotnessScore}`);
