@@ -47,6 +47,30 @@ interface WarmSymbol {
   updated_at: string;
 }
 
+type WarmSymbolFilterSummary = {
+  threshold: number;
+  passed: number;
+  filtered: number;
+  percentageFiltered: number;
+};
+
+interface WarmSymbolFilterBreakdown {
+  minAvgVolume10d: WarmSymbolFilterSummary | null;
+  minAvgVolume3m: WarmSymbolFilterSummary | null;
+  minComputationValue: WarmSymbolFilterSummary | null;
+}
+
+interface WarmSymbolScanResult {
+  totalSymbols: number;
+  warmSymbols: number;
+  filterBreakdown: WarmSymbolFilterBreakdown;
+}
+
+interface WarmSymbolUpdateResult extends WarmSymbolScanResult {
+  created: number;
+  updated: number;
+}
+
 export default function MarketSnapshotPage() {
 
   // Warm Symbol Filters state
@@ -54,34 +78,12 @@ export default function MarketSnapshotPage() {
   const [minAvgVolume10d, setMinAvgVolume10d] = useState<string>('500000');
   const [minAvgVolume3m, setMinAvgVolume3m] = useState<string>('800000');
   const [minComputationValue, setMinComputationValue] = useState<string>('1500000');
-  const [isWarming, setIsWarming] = useState(false);
+  const [isScanningWarmSymbols, setIsScanningWarmSymbols] = useState(false);
+  const [isUpdatingWarmSymbols, setIsUpdatingWarmSymbols] = useState(false);
   const [showWarmFilters, setShowWarmFilters] = useState(false);
-  const [warmFiltersResult, setWarmFiltersResult] = useState<{
-    totalSymbols: number;
-    warmSymbols: number;
-    created: number;
-    updated: number;
-    filterBreakdown: {
-      minAvgVolume10d: {
-        threshold: number;
-        passed: number;
-        filtered: number;
-        percentageFiltered: number;
-      } | null;
-      minAvgVolume3m: {
-        threshold: number;
-        passed: number;
-        filtered: number;
-        percentageFiltered: number;
-      } | null;
-      minComputationValue: {
-        threshold: number;
-        passed: number;
-        filtered: number;
-        percentageFiltered: number;
-      } | null;
-    };
-  } | null>(null);
+  const [warmScanResult, setWarmScanResult] = useState<WarmSymbolScanResult | null>(null);
+  const [warmUpdateResult, setWarmUpdateResult] = useState<WarmSymbolUpdateResult | null>(null);
+  const [lastSuccessfulScanSignature, setLastSuccessfulScanSignature] = useState<string | null>(null);
 
   // Warm Symbols state
   const [warmSymbols, setWarmSymbols] = useState<WarmSymbol[]>([]);
@@ -116,23 +118,36 @@ export default function MarketSnapshotPage() {
 
   // Helper function to format numbers
   const formatNumber = (num: number) => num.toLocaleString();
+  const parseWarmSymbolValue = (value: string): number | null => {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+  const getWarmSymbolRequestBody = () => ({
+    exchange: getExchangeCode(warmExchange),
+    minAvgVolume10d: minAvgVolume10d.trim() === '' ? null : parseWarmSymbolValue(minAvgVolume10d),
+    minAvgVolume3m: minAvgVolume3m.trim() === '' ? null : parseWarmSymbolValue(minAvgVolume3m),
+    minComputationValue: minComputationValue.trim() === '' ? null : parseWarmSymbolValue(minComputationValue)
+  });
+  const getWarmSymbolRequestSignature = (payload: { exchange: string; minAvgVolume10d: number | null; minAvgVolume3m: number | null; minComputationValue: number | null; }) =>
+    JSON.stringify(payload);
+  const currentWarmSymbolSignature = getWarmSymbolRequestSignature(getWarmSymbolRequestBody());
+  const canUpdateWarmSymbols = lastSuccessfulScanSignature !== null && lastSuccessfulScanSignature === currentWarmSymbolSignature;
 
-  const handleWarmSymbolFilters = async () => {
-    setIsWarming(true);
-    setWarmFiltersResult(null);
+  const handleScanWarmSymbols = async () => {
+    setIsScanningWarmSymbols(true);
+    setWarmScanResult(null);
+    setWarmUpdateResult(null);
+    setLastSuccessfulScanSignature(null);
 
     try {
-      const response = await fetch('/api/market-snapshot/update-warm-symbols', {
+      const requestBody = getWarmSymbolRequestBody();
+
+      const response = await fetch('/api/market-snapshot/scan-warm-symbols', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          exchange: getExchangeCode(warmExchange),
-          minAvgVolume10d: minAvgVolume10d ? parseFloat(minAvgVolume10d) : null,
-          minAvgVolume3m: minAvgVolume3m ? parseFloat(minAvgVolume3m) : null,
-          minComputationValue: minComputationValue ? parseFloat(minComputationValue) : null,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -140,17 +155,52 @@ export default function MarketSnapshotPage() {
       }
 
       const result = await response.json();
-      setWarmFiltersResult(result);
-      // Refresh warm symbols after updating filters
-      await loadWarmSymbols();
+      setWarmScanResult(result);
+      setLastSuccessfulScanSignature(getWarmSymbolRequestSignature(requestBody));
     } catch (error: unknown) {
-      console.error('Error warming symbol filters:', error);
+      console.error('Error scanning warm symbols:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to warm symbol filters';
-      // For now, keep the old message format for errors
-      setWarmFiltersResult(null);
+      setWarmScanResult(null);
       alert(`Error: ${errorMessage}`);
     } finally {
-      setIsWarming(false);
+      setIsScanningWarmSymbols(false);
+    }
+  };
+
+  const handleUpdateWarmSymbols = async () => {
+    const requestBody = getWarmSymbolRequestBody();
+    const requestSignature = getWarmSymbolRequestSignature(requestBody);
+
+    if (!canUpdateWarmSymbols || requestSignature !== lastSuccessfulScanSignature) {
+      alert('Please run Scan Warm Symbols first before updating warm symbols.');
+      return;
+    }
+
+    setIsUpdatingWarmSymbols(true);
+    setWarmUpdateResult(null);
+
+    try {
+      const response = await fetch('/api/market-snapshot/update-warm-symbols', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      setWarmUpdateResult(result);
+      await loadWarmSymbols();
+    } catch (error: unknown) {
+      console.error('Error updating warm symbols:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update warm symbols';
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setIsUpdatingWarmSymbols(false);
     }
   };
 
@@ -350,10 +400,10 @@ export default function MarketSnapshotPage() {
                     formatAsKMB={true}
                     center={true}
                   />
-                  {warmFiltersResult?.filterBreakdown.minAvgVolume10d && (
+                  {warmScanResult?.filterBreakdown.minAvgVolume10d && (
                     <div className="text-lg text-gray-700 mt-2 text-center">
-                      <div className="font-bold text-xl">{warmFiltersResult.filterBreakdown.minAvgVolume10d.percentageFiltered}%</div>
-                      <div className="text-sm text-gray-600">{formatNumber(warmFiltersResult.filterBreakdown.minAvgVolume10d.passed)} passed</div>
+                      <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minAvgVolume10d.percentageFiltered}%</div>
+                      <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minAvgVolume10d.passed)} passed</div>
                     </div>
                   )}
                 </div>
@@ -369,10 +419,10 @@ export default function MarketSnapshotPage() {
                     formatAsKMB={true}
                     center={true}
                   />
-                  {warmFiltersResult?.filterBreakdown.minAvgVolume3m && (
+                  {warmScanResult?.filterBreakdown.minAvgVolume3m && (
                     <div className="text-lg text-gray-700 mt-2 text-center">
-                      <div className="font-bold text-xl">{warmFiltersResult.filterBreakdown.minAvgVolume3m.percentageFiltered}%</div>
-                      <div className="text-sm text-gray-600">{formatNumber(warmFiltersResult.filterBreakdown.minAvgVolume3m.passed)} passed</div>
+                      <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minAvgVolume3m.percentageFiltered}%</div>
+                      <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minAvgVolume3m.passed)} passed</div>
                     </div>
                   )}
                 </div>
@@ -398,10 +448,10 @@ export default function MarketSnapshotPage() {
                     formatAsKMB={true}
                     center={true}
                   />
-                  {warmFiltersResult?.filterBreakdown.minComputationValue && (
+                  {warmScanResult?.filterBreakdown.minComputationValue && (
                     <div className="text-lg text-gray-700 mt-2 text-center">
-                      <div className="font-bold text-xl">{warmFiltersResult.filterBreakdown.minComputationValue.percentageFiltered}%</div>
-                      <div className="text-sm text-gray-600">{formatNumber(warmFiltersResult.filterBreakdown.minComputationValue.passed)} passed</div>
+                      <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minComputationValue.percentageFiltered}%</div>
+                      <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minComputationValue.passed)} passed</div>
                     </div>
                   )}
                 </div>
@@ -409,27 +459,72 @@ export default function MarketSnapshotPage() {
             </div>
 
             <div className="mt-6">
-              <Button
-                variant="secondary"
-                size="md"
-                onClick={handleWarmSymbolFilters}
-                disabled={isWarming}
-                className="w-full md:w-auto"
-              >
-                {isWarming ? 'Finding Warm Symbols...' : 'Find Warm Symbols'}
-              </Button>
+              <div className="flex flex-wrap gap-3">
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={handleScanWarmSymbols}
+                  disabled={isScanningWarmSymbols}
+                  className="w-full md:w-auto"
+                >
+                  {isScanningWarmSymbols ? 'Scanning Warm Symbols...' : 'Scan Warm Symbols'}
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  onClick={handleUpdateWarmSymbols}
+                  disabled={isUpdatingWarmSymbols || !canUpdateWarmSymbols || isScanningWarmSymbols}
+                  className="w-full md:w-auto"
+                >
+                  {isUpdatingWarmSymbols ? 'Updating Warm Symbols...' : 'Update Warm Symbols'}
+                </Button>
+              </div>
 
-              {warmFiltersResult && (
+              {!lastSuccessfulScanSignature && (
+                <div className="mt-2 text-sm text-gray-500">
+                  Run &quot;Scan Warm Symbols&quot; before updating warm symbols.
+                </div>
+              )}
+              {!canUpdateWarmSymbols && lastSuccessfulScanSignature && (
+                <div className="mt-2 text-sm text-amber-600">
+                  Filters changed. Scan Warm Symbols again to enable Update Warm Symbols.
+                </div>
+              )}
+
+              {warmScanResult && (
                 <div className="mt-4 p-4 bg-gray-50 rounded-md">
                   <div className="text-sm text-gray-700 mb-2">
-                    <span className="font-medium">Total symbols in market:</span> {warmFiltersResult.totalSymbols.toLocaleString()}
+                    <span className="font-medium">Total symbols in market:</span> {warmScanResult.totalSymbols.toLocaleString()}
                   </div>
                   <div className="text-sm text-gray-700 mb-2">
-                    <span className="font-medium">Warm symbols found:</span> {warmFiltersResult.warmSymbols.toLocaleString()}
+                    <span className="font-medium">Warm symbols found:</span> {warmScanResult.warmSymbols.toLocaleString()}
                   </div>
-                  <div className="text-sm text-gray-700">
-                    <span className="font-medium">Database updates:</span> {warmFiltersResult.created} created, {warmFiltersResult.updated} updated
-                  </div>
+                  {warmScanResult.filterBreakdown.minAvgVolume10d && (
+                    <div className="text-lg text-gray-700 mt-2 text-center">
+                      <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minAvgVolume10d.percentageFiltered}%</div>
+                      <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minAvgVolume10d.passed)} passed</div>
+                    </div>
+                  )}
+
+                  {warmScanResult.filterBreakdown.minAvgVolume3m && (
+                    <div className="text-lg text-gray-700 mt-2 text-center">
+                      <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minAvgVolume3m.percentageFiltered}%</div>
+                      <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minAvgVolume3m.passed)} passed</div>
+                    </div>
+                  )}
+
+                  {warmScanResult.filterBreakdown.minComputationValue && (
+                    <div className="text-lg text-gray-700 mt-2 text-center">
+                      <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minComputationValue.percentageFiltered}%</div>
+                      <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minComputationValue.passed)} passed</div>
+                    </div>
+                  )}
+
+                  {warmUpdateResult && (
+                    <div className="text-sm text-gray-700 mt-3">
+                      <span className="font-medium">Database updates:</span> {warmUpdateResult.created} created, {warmUpdateResult.updated} updated
+                    </div>
+                  )}
                 </div>
               )}
             </div>

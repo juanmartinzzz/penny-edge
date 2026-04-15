@@ -3,11 +3,64 @@ import https from 'https';
 import { URL } from 'url';
 import { supabaseAdmin, SYMBOLS_V2_TABLE, CONFIG_TABLE } from '@/lib/supabase';
 
-interface UpdateWarmSymbolsRequest {
+export interface UpdateWarmSymbolsRequest {
   exchange: string;
   minAvgVolume10d?: number | null;
   minAvgVolume3m?: number | null;
   minComputationValue?: number | null;
+}
+
+export type WarmExchangeCode = 'TOR' | 'VAN' | 'NYQ' | 'NMS' | 'ASE' | 'PCX';
+
+export const VALID_WARM_EXCHANGES: WarmExchangeCode[] = ['TOR', 'VAN', 'NYQ', 'NMS', 'ASE', 'PCX'];
+
+export type WarmSymbolFilterSummary = {
+  threshold: number;
+  passed: number;
+  filtered: number;
+  percentageFiltered: number;
+};
+
+export interface WarmSymbolFilterBreakdown {
+  minAvgVolume10d: WarmSymbolFilterSummary | null;
+  minAvgVolume3m: WarmSymbolFilterSummary | null;
+  minComputationValue: WarmSymbolFilterSummary | null;
+}
+
+export interface WarmSymbolScanResult {
+  allSymbols: QuoteData[];
+  warmSymbols: QuoteData[];
+  filterBreakdown: WarmSymbolFilterBreakdown;
+}
+
+export function getWarmSymbolRequestValidationError(body: UpdateWarmSymbolsRequest): string | null {
+  if (!body.exchange || typeof body.exchange !== 'string') {
+    return 'Exchange parameter is required';
+  }
+
+  if (!VALID_WARM_EXCHANGES.includes(body.exchange as WarmExchangeCode)) {
+    return `Invalid exchange. Valid exchanges are: ${VALID_WARM_EXCHANGES.join(', ')}`;
+  }
+
+  if (body.minAvgVolume10d !== null && body.minAvgVolume10d !== undefined) {
+    if (typeof body.minAvgVolume10d !== 'number' || Number.isNaN(body.minAvgVolume10d) || body.minAvgVolume10d < 0) {
+      return 'minAvgVolume10d must be non-negative';
+    }
+  }
+
+  if (body.minAvgVolume3m !== null && body.minAvgVolume3m !== undefined) {
+    if (typeof body.minAvgVolume3m !== 'number' || Number.isNaN(body.minAvgVolume3m) || body.minAvgVolume3m < 0) {
+      return 'minAvgVolume3m must be non-negative';
+    }
+  }
+
+  if (body.minComputationValue !== null && body.minComputationValue !== undefined) {
+    if (typeof body.minComputationValue !== 'number' || Number.isNaN(body.minComputationValue) || body.minComputationValue < 0) {
+      return 'minComputationValue must be non-negative';
+    }
+  }
+
+  return null;
 }
 
 interface YahooFinanceAuth {
@@ -230,6 +283,75 @@ function calculateIsWarmSymbol(
   }
 
   return true;
+}
+
+export async function scanWarmSymbols(body: UpdateWarmSymbolsRequest): Promise<WarmSymbolScanResult> {
+  const filters = {
+    minAvgVolume10d: body.minAvgVolume10d,
+    minAvgVolume3m: body.minAvgVolume3m,
+    minComputationValue: body.minComputationValue
+  };
+
+  // Step 1: Get Yahoo Finance auth
+  const yahooAuth = await getYahooAuth();
+
+  // Step 2: Fetch all market symbols in batches
+  const fetcher = new YahooFinanceBatchFetcher(yahooAuth, body.exchange);
+  const allSymbols = await fetcher.fetchAllMarketSymbols();
+  console.log(`Fetched ${allSymbols.length} symbols from Yahoo Finance for exchange ${body.exchange}`);
+
+  // Step 3: Filter warm symbols based on criteria
+  // Count symbols that fail each individual criteria
+  let failedMinAvgVolume10d = 0;
+  let failedMinAvgVolume3m = 0;
+  let failedMinComputationValue = 0;
+
+  for (const symbol of allSymbols) {
+    // Check each criteria individually and count failures
+    if (filters.minAvgVolume10d && (!symbol.averageDailyVolume10Day || symbol.averageDailyVolume10Day < filters.minAvgVolume10d)) {
+      failedMinAvgVolume10d++;
+    }
+
+    if (filters.minAvgVolume3m && (!symbol.averageDailyVolume3Month || symbol.averageDailyVolume3Month < filters.minAvgVolume3m)) {
+      failedMinAvgVolume3m++;
+    }
+
+    if (filters.minComputationValue) {
+      const avgVol3m = symbol.averageDailyVolume3Month || 0;
+      const fiftyDayAvg = symbol.fiftyDayAverage || 0;
+      const computationValue = (avgVol3m * fiftyDayAvg) / 90;
+
+      if (computationValue < filters.minComputationValue) {
+        failedMinComputationValue++;
+      }
+    }
+  }
+
+  const warmSymbols = allSymbols.filter(symbol => calculateIsWarmSymbol(symbol, filters));
+  console.log(`Found ${warmSymbols.length} symbols that meet the warm criteria`);
+
+  const filterBreakdown = {
+    minAvgVolume10d: filters.minAvgVolume10d !== null && filters.minAvgVolume10d !== undefined ? {
+      threshold: filters.minAvgVolume10d,
+      passed: allSymbols.length - failedMinAvgVolume10d,
+      filtered: failedMinAvgVolume10d,
+      percentageFiltered: allSymbols.length > 0 ? Math.round((failedMinAvgVolume10d / allSymbols.length) * 100) : 0
+    } : null,
+    minAvgVolume3m: filters.minAvgVolume3m !== null && filters.minAvgVolume3m !== undefined ? {
+      threshold: filters.minAvgVolume3m,
+      passed: allSymbols.length - failedMinAvgVolume3m,
+      filtered: failedMinAvgVolume3m,
+      percentageFiltered: allSymbols.length > 0 ? Math.round((failedMinAvgVolume3m / allSymbols.length) * 100) : 0
+    } : null,
+    minComputationValue: filters.minComputationValue !== null && filters.minComputationValue !== undefined ? {
+      threshold: filters.minComputationValue,
+      passed: allSymbols.length - failedMinComputationValue,
+      filtered: failedMinComputationValue,
+      percentageFiltered: allSymbols.length > 0 ? Math.round((failedMinComputationValue / allSymbols.length) * 100) : 0
+    } : null
+  };
+
+  return { allSymbols, warmSymbols, filterBreakdown };
 }
 
 async function resetAllSymbolsWarmStatus(): Promise<void> {
@@ -505,29 +627,9 @@ export async function POST(request: NextRequest) {
   try {
     const body: UpdateWarmSymbolsRequest = await request.json();
 
-
-    // Validate required parameters
-    if (!body.exchange) {
-      return NextResponse.json({ error: 'Exchange parameter is required' }, { status: 400 });
-    }
-
-    // Validate exchange codes
-    const validExchanges = ['TOR', 'VAN', 'NYQ', 'NMS', 'ASE', 'PCX'];
-    if (!validExchanges.includes(body.exchange)) {
-      return NextResponse.json({
-        error: `Invalid exchange. Valid exchanges are: ${validExchanges.join(', ')}`
-      }, { status: 400 });
-    }
-
-    // Validate input parameters
-    if (body.minAvgVolume10d !== null && body.minAvgVolume10d !== undefined && body.minAvgVolume10d < 0) {
-      return NextResponse.json({ error: 'minAvgVolume10d must be non-negative' }, { status: 400 });
-    }
-    if (body.minAvgVolume3m !== null && body.minAvgVolume3m !== undefined && body.minAvgVolume3m < 0) {
-      return NextResponse.json({ error: 'minAvgVolume3m must be non-negative' }, { status: 400 });
-    }
-    if (body.minComputationValue !== null && body.minComputationValue !== undefined && body.minComputationValue < 0) {
-      return NextResponse.json({ error: 'minComputationValue must be non-negative' }, { status: 400 });
+    const validationError = getWarmSymbolRequestValidationError(body);
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
     }
 
     console.log('Starting warm symbols update process...');
@@ -535,79 +637,13 @@ export async function POST(request: NextRequest) {
     // Step 1: Reset all symbols to not warm
     await resetAllSymbolsWarmStatus();
 
-    // Step 2: Get Yahoo Finance auth
-    const yahooAuth = await getYahooAuth();
-
-    // Step 3: Fetch all market symbols in batches
-    const fetcher = new YahooFinanceBatchFetcher(yahooAuth, body.exchange);
-    const allSymbols = await fetcher.fetchAllMarketSymbols();
-    console.log(`Fetched ${allSymbols.length} symbols from Yahoo Finance for exchange ${body.exchange}`);
-
-    // Step 4: Filter warm symbols based on criteria
-    const filters = {
-      minAvgVolume10d: body.minAvgVolume10d,
-      minAvgVolume3m: body.minAvgVolume3m,
-      minComputationValue: body.minComputationValue
-    };
-
-    // Count symbols that fail each individual criteria
-    let failedMinAvgVolume10d = 0;
-    let failedMinAvgVolume3m = 0;
-    let failedMinComputationValue = 0;
-
-    for (const symbol of allSymbols) {
-      // Check each criteria individually and count failures
-      if (filters.minAvgVolume10d && (!symbol.averageDailyVolume10Day || symbol.averageDailyVolume10Day < filters.minAvgVolume10d)) {
-        failedMinAvgVolume10d++;
-      }
-
-      if (filters.minAvgVolume3m && (!symbol.averageDailyVolume3Month || symbol.averageDailyVolume3Month < filters.minAvgVolume3m)) {
-        failedMinAvgVolume3m++;
-      }
-
-      if (filters.minComputationValue) {
-        const avgVol3m = symbol.averageDailyVolume3Month || 0;
-        const fiftyDayAvg = symbol.fiftyDayAverage || 0;
-        const computationValue = (avgVol3m * fiftyDayAvg) / 90;
-
-        if (computationValue < filters.minComputationValue) {
-          failedMinComputationValue++;
-        }
-      }
-    }
-
-    const warmSymbols = allSymbols.filter(symbol => calculateIsWarmSymbol(symbol, filters));
+    // Step 2: Run warm symbol scan and calculate breakdown
+    const { allSymbols, warmSymbols, filterBreakdown } = await scanWarmSymbols(body);
     console.log(`Found ${warmSymbols.length} symbols that meet the warm criteria`);
-    console.log(`Symbols failing criteria:`);
-    console.log(`  Min Avg Volume (10d): ${failedMinAvgVolume10d}`);
-    console.log(`  Min Avg Volume (3M): ${failedMinAvgVolume3m}`);
-    console.log(`  Min Computation Value: ${failedMinComputationValue}`);
 
-    // Step 5: Upsert warm symbols to database
+    // Step 3: Upsert warm symbols to database
     const { created, updated } = await upsertWarmSymbols(warmSymbols);
     console.log(`Created ${created} new symbols, updated ${updated} existing symbols`);
-
-    // Calculate filter breakdown with percentages
-    const filterBreakdown = {
-      minAvgVolume10d: filters.minAvgVolume10d !== null && filters.minAvgVolume10d !== undefined ? {
-        threshold: filters.minAvgVolume10d,
-        passed: allSymbols.length - failedMinAvgVolume10d,
-        filtered: failedMinAvgVolume10d,
-        percentageFiltered: allSymbols.length > 0 ? Math.round((failedMinAvgVolume10d / allSymbols.length) * 100) : 0
-      } : null,
-      minAvgVolume3m: filters.minAvgVolume3m !== null && filters.minAvgVolume3m !== undefined ? {
-        threshold: filters.minAvgVolume3m,
-        passed: allSymbols.length - failedMinAvgVolume3m,
-        filtered: failedMinAvgVolume3m,
-        percentageFiltered: allSymbols.length > 0 ? Math.round((failedMinAvgVolume3m / allSymbols.length) * 100) : 0
-      } : null,
-      minComputationValue: filters.minComputationValue !== null && filters.minComputationValue !== undefined ? {
-        threshold: filters.minComputationValue,
-        passed: allSymbols.length - failedMinComputationValue,
-        filtered: failedMinComputationValue,
-        percentageFiltered: allSymbols.length > 0 ? Math.round((failedMinComputationValue / allSymbols.length) * 100) : 0
-      } : null
-    };
 
     console.log('Warm symbols update process completed successfully');
 
