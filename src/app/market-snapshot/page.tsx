@@ -96,7 +96,7 @@ export default function MarketSnapshotPage() {
   const [isWarmFilterPresetsHydrated, setIsWarmFilterPresetsHydrated] = useState(false);
   const [isScanningWarmSymbols, setIsScanningWarmSymbols] = useState(false);
   const [isUpdatingWarmSymbols, setIsUpdatingWarmSymbols] = useState(false);
-  const [showWarmFilters, setShowWarmFilters] = useState(false);
+  const [showWarmFilters, setShowWarmFilters] = useState(true);
   const [warmScanResult, setWarmScanResult] = useState<WarmSymbolScanResult | null>(null);
   const [warmUpdateResult, setWarmUpdateResult] = useState<WarmSymbolUpdateResult | null>(null);
   const [lastSuccessfulScanSignature, setLastSuccessfulScanSignature] = useState<string | null>(null);
