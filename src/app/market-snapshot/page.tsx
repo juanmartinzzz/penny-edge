@@ -21,6 +21,20 @@ const EXCHANGE_OPTIONS = [
   'PCX - Pacific Exchange'
 ];
 
+const WARM_FILTER_PRESETS_STORAGE_KEY = 'market-snapshot:warm-filter-presets';
+
+type WarmSymbolFilterPreset = {
+  minAvgVolume10d: string;
+  minAvgVolume3m: string;
+  minComputationValue: string;
+};
+
+const DEFAULT_WARM_SYMBOL_FILTER_PRESET: WarmSymbolFilterPreset = {
+  minAvgVolume10d: '7777',
+  minAvgVolume3m: '7777',
+  minComputationValue: '7777',
+};
+
 interface WarmSymbol {
   id: string;
   symbol: string;
@@ -75,9 +89,11 @@ export default function MarketSnapshotPage() {
 
   // Warm Symbol Filters state
   const [warmExchange, setWarmExchange] = useState<string>('TOR - TSX (Toronto)');
-  const [minAvgVolume10d, setMinAvgVolume10d] = useState<string>('500000');
-  const [minAvgVolume3m, setMinAvgVolume3m] = useState<string>('800000');
-  const [minComputationValue, setMinComputationValue] = useState<string>('1500000');
+  const [minAvgVolume10d, setMinAvgVolume10d] = useState<string>(DEFAULT_WARM_SYMBOL_FILTER_PRESET.minAvgVolume10d);
+  const [minAvgVolume3m, setMinAvgVolume3m] = useState<string>(DEFAULT_WARM_SYMBOL_FILTER_PRESET.minAvgVolume3m);
+  const [minComputationValue, setMinComputationValue] = useState<string>(DEFAULT_WARM_SYMBOL_FILTER_PRESET.minComputationValue);
+  const [warmFilterPresets, setWarmFilterPresets] = useState<Record<string, WarmSymbolFilterPreset>>({});
+  const [isWarmFilterPresetsHydrated, setIsWarmFilterPresetsHydrated] = useState(false);
   const [isScanningWarmSymbols, setIsScanningWarmSymbols] = useState(false);
   const [isUpdatingWarmSymbols, setIsUpdatingWarmSymbols] = useState(false);
   const [showWarmFilters, setShowWarmFilters] = useState(false);
@@ -122,6 +138,94 @@ export default function MarketSnapshotPage() {
     const parsed = Number.parseFloat(value);
     return Number.isFinite(parsed) ? parsed : null;
   };
+
+  const normalizeWarmSymbolFilterPreset = (value: unknown): WarmSymbolFilterPreset => {
+    const preset = (value ?? {}) as Partial<Record<keyof WarmSymbolFilterPreset, unknown>>;
+
+    const asPresetString = (input: unknown): string | undefined => {
+      if (input === undefined || input === null) return undefined;
+      return `${input}`;
+    };
+
+    return {
+      minAvgVolume10d: asPresetString(preset.minAvgVolume10d) ?? DEFAULT_WARM_SYMBOL_FILTER_PRESET.minAvgVolume10d,
+      minAvgVolume3m: asPresetString(preset.minAvgVolume3m) ?? DEFAULT_WARM_SYMBOL_FILTER_PRESET.minAvgVolume3m,
+      minComputationValue: asPresetString(preset.minComputationValue) ?? DEFAULT_WARM_SYMBOL_FILTER_PRESET.minComputationValue,
+    };
+  };
+
+  const isSameWarmFilterPreset = (a: WarmSymbolFilterPreset, b: WarmSymbolFilterPreset) => (
+    a.minAvgVolume10d === b.minAvgVolume10d &&
+    a.minAvgVolume3m === b.minAvgVolume3m &&
+    a.minComputationValue === b.minComputationValue
+  );
+
+  const applyWarmFilterPresetForExchange = (exchangeDisplay: string, presets?: Record<string, WarmSymbolFilterPreset>) => {
+    const exchangeCode = getExchangeCode(exchangeDisplay);
+    const presetSource = presets || warmFilterPresets;
+    const preset = normalizeWarmSymbolFilterPreset(presetSource[exchangeCode]);
+
+    setMinAvgVolume10d(preset.minAvgVolume10d);
+    setMinAvgVolume3m(preset.minAvgVolume3m);
+    setMinComputationValue(preset.minComputationValue);
+  };
+
+  const handleWarmExchangeChange = (selected: string[]) => {
+    const nextExchange = selected[0] || 'TOR - TSX (Toronto)';
+    setWarmExchange(nextExchange);
+    applyWarmFilterPresetForExchange(nextExchange);
+    setLastSuccessfulScanSignature(null);
+  };
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem(WARM_FILTER_PRESETS_STORAGE_KEY);
+      const parsed = stored ? JSON.parse(stored) : null;
+      const loadedPresets: Record<string, WarmSymbolFilterPreset> = {};
+
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        Object.entries(parsed).forEach(([exchangeCode, preset]) => {
+          loadedPresets[exchangeCode] = normalizeWarmSymbolFilterPreset(preset);
+        });
+      }
+
+      setWarmFilterPresets(loadedPresets);
+      applyWarmFilterPresetForExchange(warmExchange, loadedPresets);
+    } catch (error) {
+      console.error('Error loading warm symbol filter presets:', error);
+      setWarmFilterPresets({});
+      applyWarmFilterPresetForExchange(warmExchange, {});
+    } finally {
+      setIsWarmFilterPresetsHydrated(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isWarmFilterPresetsHydrated) return;
+
+    const exchangeCode = getExchangeCode(warmExchange);
+    const updatedPreset = normalizeWarmSymbolFilterPreset({
+      minAvgVolume10d,
+      minAvgVolume3m,
+      minComputationValue,
+    });
+
+    setWarmFilterPresets(prev => {
+      const currentPreset = prev[exchangeCode];
+      if (currentPreset && isSameWarmFilterPreset(currentPreset, updatedPreset)) {
+        return prev;
+      }
+
+      const nextPresets = {
+        ...prev,
+        [exchangeCode]: updatedPreset,
+      };
+
+      localStorage.setItem(WARM_FILTER_PRESETS_STORAGE_KEY, JSON.stringify(nextPresets));
+      return nextPresets;
+    });
+  }, [isWarmFilterPresetsHydrated, warmExchange, minAvgVolume10d, minAvgVolume3m, minComputationValue]);
+
   const getWarmSymbolRequestBody = () => ({
     exchange: getExchangeCode(warmExchange),
     minAvgVolume10d: minAvgVolume10d.trim() === '' ? null : parseWarmSymbolValue(minAvgVolume10d),
@@ -381,7 +485,7 @@ export default function MarketSnapshotPage() {
                 <PillList
                   options={EXCHANGE_OPTIONS}
                   selected={[warmExchange]}
-                  onChange={(selected) => setWarmExchange(selected[0] || 'TOR - TSX (Toronto)')}
+                  onChange={handleWarmExchangeChange}
                   variant="single"
                   size="xs"
                 />
