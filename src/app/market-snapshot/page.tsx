@@ -120,6 +120,7 @@ export default function MarketSnapshotPage() {
     currentSymbol: string;
     errors: string[];
   } | null>(null);
+  const [showAdvancedHotnessSettings, setShowAdvancedHotnessSettings] = useState(false);
 
   const clampHotnessScore = (value: number) => Math.min(100, Math.max(0, value));
 
@@ -689,64 +690,88 @@ export default function MarketSnapshotPage() {
                 </div>
               </div>
 
-              <div className="border border-gray-200 rounded-md p-4 bg-gray-50">
-                <h3 className="text-sm font-medium text-[#14171f] mb-4">
-                  Hotness Allocation (kept at 100 total)
-                </h3>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-[#14171f]">
-                      Drop Max Score (points reserved for recent drop)
-                    </label>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={hotnessDropMaxScore || '0'}
-                        onChange={(event) => handleDropMaxScoreChange(event.target.value)}
-                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                      />
-                      <div className="w-24">
-                        <NumericInput
-                          value={hotnessDropMaxScore}
-                          onChange={handleDropMaxScoreChange}
-                          min={0}
-                          max={100}
-                          size="sm"
-                        />
+              <div className="border-t border-gray-200 pt-4">
+                <button
+                  onClick={() => setShowAdvancedHotnessSettings(!showAdvancedHotnessSettings)}
+                  className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+                >
+                  {showAdvancedHotnessSettings ? (
+                    <>
+                      <ChevronUp className="w-4 h-4" />
+                      Hide Advanced Settings
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="w-4 h-4" />
+                      Show Advanced Settings
+                    </>
+                  )}
+                </button>
+
+                {showAdvancedHotnessSettings && (
+                  <div className="mt-4 border border-gray-200 rounded-md p-4 bg-gray-50">
+                    <h3 className="text-sm font-medium text-[#14171f] mb-4">
+                      Hotness Allocation (kept at 100 total)
+                    </h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-[#14171f]">
+                          Drop Max Score (points reserved for recent drop)
+                        </label>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={hotnessDropMaxScore || '0'}
+                            onChange={(event) => handleDropMaxScoreChange(event.target.value)}
+                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                          />
+                          <div className="w-24">
+                            <NumericInput
+                              value={hotnessDropMaxScore}
+                              onChange={handleDropMaxScoreChange}
+                              min={0}
+                              max={100}
+                              size="sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="block text-sm font-medium text-[#14171f]">
+                          Volatility Bonus (points reserved for momentum premium)
+                        </label>
+                        <div className="flex flex-wrap items-center gap-3">
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={hotnessVolatilityMaxBonus || '0'}
+                            onChange={(event) => handleVolatilityMaxBonusChange(event.target.value)}
+                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                          />
+                          <div className="w-24">
+                            <NumericInput
+                              value={hotnessVolatilityMaxBonus}
+                              onChange={handleVolatilityMaxBonusChange}
+                              min={0}
+                              max={100}
+                              size="sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="md:col-span-2">
+                        <p className="text-xs text-gray-500">
+                          Drop Max Score + Volatility Bonus is always clamped to <strong>100</strong>.
+                        </p>
                       </div>
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="block text-sm font-medium text-[#14171f]">
-                      Volatility Bonus (points reserved for momentum premium)
-                    </label>
-                    <div className="flex flex-wrap items-center gap-3">
-                      <input
-                        type="range"
-                        min={0}
-                        max={100}
-                        step={1}
-                        value={hotnessVolatilityMaxBonus || '0'}
-                        onChange={(event) => handleVolatilityMaxBonusChange(event.target.value)}
-                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                      />
-                      <div className="w-24">
-                        <NumericInput
-                          value={hotnessVolatilityMaxBonus}
-                          onChange={handleVolatilityMaxBonusChange}
-                          min={0}
-                          max={100}
-                          size="sm"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Drop Max Score + Volatility Bonus is always clamped to <strong>100</strong>.
-                  </p>
+                )}
                 </div>
               </div>
             </div>
