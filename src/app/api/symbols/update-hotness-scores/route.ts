@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, SYMBOLS_TABLE } from '@/lib/supabase';
-import { calculateHotnessScore, HotnessScoreParams, DEFAULT_HOTNESS_PARAMS } from '@/lib/price-service';
+import { calculateHotnessScoreV2, HotnessScoreParams, DEFAULT_HOTNESS_PARAMS, normalizeV2HotnessParams } from '@/lib/price-service';
 
 // POST /api/symbols/update-hotness-scores
 export async function POST(request: NextRequest) {
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
       continueFromId
     }: {
       batchSize?: number;
-      params?: HotnessScoreParams;
+      params?: Partial<HotnessScoreParams>;
       continueFromId?: string;
     } = body;
 
@@ -57,7 +57,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Process symbols and calculate hotness scores
+    const normalizedParams = normalizeV2HotnessParams(params);
+
+    // Process symbols and calculate v2 hotness scores
     const updates = [];
     let processedCount = 0;
 
@@ -73,7 +75,7 @@ export async function POST(request: NextRequest) {
           .slice(); // getAveragePrices already stores most-recent first
 
         // Calculate hotness score
-        const hotnessScore = calculateHotnessScore(periods, params);
+        const hotnessScore = calculateHotnessScoreV2(periods, normalizedParams);
 
         updates.push({
           id: symbol.id,
@@ -124,7 +126,7 @@ export async function POST(request: NextRequest) {
       batchSize,
       hasMore,
       lastProcessedId: hasMore ? lastProcessedId : null,
-      paramsUsed: params
+      paramsUsed: normalizedParams
     });
 
   } catch (error) {

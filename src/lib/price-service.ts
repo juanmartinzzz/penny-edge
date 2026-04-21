@@ -39,6 +39,29 @@ export const RECOMMENDED_HOTNESS_PARAMS: HotnessScoreParams = {
   averageTradedValueThreshold: 10000,
 };
 
+const clampHotnessScoreValue = (value: number, fallback: number): number => {
+  if (!Number.isFinite(value)) {
+    return fallback;
+  }
+
+  return Math.min(100, Math.max(0, value));
+};
+
+export function normalizeV2HotnessParams(params: Partial<HotnessScoreParams> = {}): HotnessScoreParams {
+  const normalizedInput: HotnessScoreParams = {
+    ...DEFAULT_HOTNESS_PARAMS,
+    ...params,
+  };
+
+  const dropMaxScore = clampHotnessScoreValue(normalizedInput.dropMaxScore, DEFAULT_HOTNESS_PARAMS.dropMaxScore);
+
+  return {
+    ...normalizedInput,
+    dropMaxScore,
+    volatilityMaxBonus: 100 - dropMaxScore
+  };
+}
+
 // Helper function to format symbol for Yahoo Finance API
 function formatSymbolForYahooFinance(symbol: string, exchange: string): string {
   // Canadian stocks require exchange-specific suffixes
@@ -291,7 +314,7 @@ export function calculateHotnessScoreV2(
   periods: AveragePricePeriod[],
   params: HotnessScoreParams = DEFAULT_HOTNESS_PARAMS
 ): number {
-  console.log('[calculateHotnessScoreV2] periods input:', periods);
+  const normalizedParams = normalizeV2HotnessParams(params);
 
   // Input validation
   if (!Array.isArray(periods) || periods.length < 2) {
@@ -325,11 +348,34 @@ export function calculateHotnessScoreV2(
 
   // Step 4: Calculate Drop Score
   // Score is based purely on how much the most recent period has dropped vs historical average
-  const dropScore = Math.min(params.dropMaxScore, dropPercentage * params.dropSensitivity);
+  const dropScore = Math.min(normalizedParams.dropMaxScore, dropPercentage * normalizedParams.dropSensitivity);
+
+  const meanPrice = validPrices.reduce((sum, price) => sum + price, 0) / N;
+  const variance = validPrices.reduce((sum, price) => sum + Math.pow(price - meanPrice, 2), 0) / N;
+  const stdDev = Math.sqrt(variance);
+  const volatilityPercentage = (stdDev / meanPrice) * 100;
+  const oldestPrice = validPrices[N - 1];
+  const trendPercentage = ((mostRecentPrice - oldestPrice) / oldestPrice) * 100;
+
+  let volatilityScore = 0;
+
+  if (volatilityPercentage >= normalizedParams.volatilityThreshold) {
+    const normalizedVolatility = Math.min(1.0, volatilityPercentage / 10);
+    let multiplier: number;
+
+    if (trendPercentage < -normalizedParams.trendBoundary) {
+      multiplier = normalizedParams.downtrendPenalty;
+    } else if (trendPercentage > normalizedParams.trendBoundary) {
+      multiplier = normalizedParams.uptrendMultiplier;
+    } else {
+      multiplier = normalizedParams.stableMultiplier;
+    }
+
+    volatilityScore = normalizedVolatility * normalizedParams.volatilityMaxBonus * multiplier;
+  }
 
   // Step 5: Calculate Final Hotness Score
-  // V2: No volatility modifiers or trading volume penalties - pure focus on recent drops
-  const hotnessScore = Math.min(100, dropScore);
+  const hotnessScore = Math.min(100, dropScore + volatilityScore);
 
   return Math.round(hotnessScore * 100) / 100; // Round to 2 decimal places
 }

@@ -5,7 +5,7 @@ import { ChevronDown, ChevronRight, Settings } from 'lucide-react';
 import Button from '@/components/interaction/Button';
 import Input from '@/components/interaction/Input';
 import { Loading } from './Loading';
-import { HotnessScoreParams, DEFAULT_HOTNESS_PARAMS, RECOMMENDED_HOTNESS_PARAMS } from '@/lib/price-service';
+import { DEFAULT_HOTNESS_PARAMS, normalizeV2HotnessParams } from '@/lib/price-service';
 
 interface ProcessingStats {
   totalProcessed: number;
@@ -34,19 +34,33 @@ export function StockHotnessManager({
   });
   const [error, setError] = useState<string | null>(null);
 
-  // Hotness score parameters
-  const [params, setParams] = useState<HotnessScoreParams>(DEFAULT_HOTNESS_PARAMS);
+  const [dropMaxScore, setDropMaxScore] = useState<string>(String(DEFAULT_HOTNESS_PARAMS.dropMaxScore));
+  const [volatilityMaxBonus, setVolatilityMaxBonus] = useState<string>(String(DEFAULT_HOTNESS_PARAMS.volatilityMaxBonus));
 
-  const updateParam = (key: keyof HotnessScoreParams, value: number) => {
-    setParams(prev => ({ ...prev, [key]: value }));
+  const clampHotnessScore = (value: number) => Math.min(100, Math.max(0, value));
+
+  const handleDropMaxScoreChange = (value: string) => {
+    const parsedValue = parseFloat(value);
+    const nextDropMaxScore = clampHotnessScore(Number.isFinite(parsedValue) ? parsedValue : DEFAULT_HOTNESS_PARAMS.dropMaxScore);
+    const balancedParams = normalizeV2HotnessParams({ dropMaxScore: nextDropMaxScore });
+    setDropMaxScore(String(nextDropMaxScore));
+    setVolatilityMaxBonus(String(balancedParams.volatilityMaxBonus));
+  };
+
+  const handleVolatilityMaxBonusChange = (value: string) => {
+    const parsedValue = parseFloat(value);
+    const nextVolatilityMaxBonus = clampHotnessScore(Number.isFinite(parsedValue) ? parsedValue : DEFAULT_HOTNESS_PARAMS.volatilityMaxBonus);
+    const balancedParams = normalizeV2HotnessParams({
+      dropMaxScore: 100 - nextVolatilityMaxBonus,
+      volatilityMaxBonus: nextVolatilityMaxBonus
+    });
+    setVolatilityMaxBonus(String(nextVolatilityMaxBonus));
+    setDropMaxScore(String(balancedParams.dropMaxScore));
   };
 
   const resetToDefaults = () => {
-    setParams(DEFAULT_HOTNESS_PARAMS);
-  };
-
-  const applyRecommended = () => {
-    setParams(RECOMMENDED_HOTNESS_PARAMS);
+    setDropMaxScore(String(DEFAULT_HOTNESS_PARAMS.dropMaxScore));
+    setVolatilityMaxBonus(String(DEFAULT_HOTNESS_PARAMS.volatilityMaxBonus));
   };
 
   const processBatch = async (continueFromId?: string) => {
@@ -59,7 +73,10 @@ export function StockHotnessManager({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           batchSize: 100,
-          params,
+          params: normalizeV2HotnessParams({
+            dropMaxScore: parseFloat(dropMaxScore),
+            volatilityMaxBonus: parseFloat(volatilityMaxBonus)
+          }),
           continueFromId
         })
       });
@@ -182,122 +199,64 @@ export function StockHotnessManager({
         <div className="bg-white rounded-md border border-[#d0d4dc] p-4 space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-md font-semibold text-[#14171f]">Hotness Score Parameters</h3>
-            <div className="flex space-x-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={resetToDefaults}
-                className="text-xs"
-              >
-                Reset to Defaults
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={applyRecommended}
-                className="text-xs"
-              >
-                Apply Trader Settings
-              </Button>
-            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={resetToDefaults}
+              className="text-xs"
+            >
+              Reset to Defaults
+            </Button>
           </div>
 
-          {/* Drop Settings */}
-          <div className="border rounded-md p-3 bg-gray-50">
-            <h4 className="text-sm font-medium text-[#14171f] mb-3">Drop Settings (Criterion 1)</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Drop Sensitivity"
-                type="number"
-                value={params.dropSensitivity.toString()}
-                onChange={(value) => updateParam('dropSensitivity', parseFloat(value) || 0)}
-                size="sm"
-              />
-              <Input
-                label="Max Drop Score"
-                type="number"
-                value={params.dropMaxScore.toString()}
-                onChange={(value) => updateParam('dropMaxScore', parseInt(value) || 0)}
-                size="sm"
-              />
+          <div className="border rounded-md p-3 bg-gray-50 space-y-4">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-[#14171f]">Drop Max Score</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={dropMaxScore || '0'}
+                  onChange={(event) => handleDropMaxScoreChange(event.target.value)}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <div className="w-24">
+                  <Input
+                    type="number"
+                    value={dropMaxScore}
+                    onChange={handleDropMaxScoreChange}
+                    size="sm"
+                  />
+                </div>
+              </div>
             </div>
-          </div>
-
-          {/* Volatility Settings */}
-          <div className="border rounded-md p-3 bg-gray-50">
-            <h4 className="text-sm font-medium text-[#14171f] mb-3">Volatility Settings (Criterion 2)</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Volatility Threshold %"
-                type="number"
-                value={params.volatilityThreshold.toString()}
-                onChange={(value) => updateParam('volatilityThreshold', parseFloat(value) || 0)}
-                size="sm"
-              />
-              <Input
-                label="Max Volatility Bonus"
-                type="number"
-                value={params.volatilityMaxBonus.toString()}
-                onChange={(value) => updateParam('volatilityMaxBonus', parseInt(value) || 0)}
-                size="sm"
-              />
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-[#14171f]">Volatility Bonus</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={volatilityMaxBonus || '0'}
+                  onChange={(event) => handleVolatilityMaxBonusChange(event.target.value)}
+                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                />
+                <div className="w-24">
+                  <Input
+                    type="number"
+                    value={volatilityMaxBonus}
+                    onChange={handleVolatilityMaxBonusChange}
+                    size="sm"
+                  />
+                </div>
+              </div>
             </div>
-          </div>
-
-          {/* Trend Multipliers */}
-          <div className="border rounded-md p-3 bg-gray-50">
-            <h4 className="text-sm font-medium text-[#14171f] mb-3">Trend Multipliers</h4>
-            <div className="grid grid-cols-2 gap-4">
-              <Input
-                label="Downtrend Penalty"
-                type="number"
-                value={params.downtrendPenalty.toString()}
-                onChange={(value) => updateParam('downtrendPenalty', parseFloat(value) || 0)}
-                size="sm"
-              />
-              <Input
-                label="Stable Multiplier"
-                type="number"
-                value={params.stableMultiplier.toString()}
-                onChange={(value) => updateParam('stableMultiplier', parseFloat(value) || 0)}
-                size="sm"
-              />
-              <Input
-                label="Uptrend Multiplier"
-                type="number"
-                value={params.uptrendMultiplier.toString()}
-                onChange={(value) => updateParam('uptrendMultiplier', parseFloat(value) || 0)}
-                size="sm"
-              />
-              <Input
-                label="Trend Boundary %"
-                type="number"
-                value={params.trendBoundary.toString()}
-                onChange={(value) => updateParam('trendBoundary', parseFloat(value) || 0)}
-                size="sm"
-              />
-            </div>
-          </div>
-
-          {/* Liquidity Settings */}
-          <div className="border rounded-md p-3 bg-gray-50">
-            <h4 className="text-sm font-medium text-[#14171f] mb-3">Liquidity Settings</h4>
-            <div className="grid grid-cols-1 gap-4">
-              <Input
-                label="Avg Traded Value Threshold"
-                type="number"
-                value={params.averageTradedValueThreshold.toString()}
-                onChange={(value) => updateParam('averageTradedValueThreshold', parseFloat(value) || 0)}
-                size="sm"
-              />
-            </div>
-            <p className="text-xs text-gray-600 mt-2">
-              If all periods have average traded value below this threshold, the hotness score is halved to penalize low-volume stocks.
+            <p className="text-xs text-gray-600">
+              Kept linked automatically so total allocation is always <strong>100</strong>.
             </p>
-          </div>
-
-          <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
-            <p><strong>Tip:</strong> Higher drop sensitivity catches smaller price drops. Higher volatility threshold only rewards truly volatile stocks. Lower traded value threshold penalizes more low-volume stocks.</p>
           </div>
         </div>
       )}

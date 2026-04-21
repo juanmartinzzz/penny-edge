@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin, SYMBOLS_V2_TABLE } from '@/lib/supabase';
-import { getAveragePrices, calculateHotnessScore, calculateHotnessScoreV2, DEFAULT_HOTNESS_PARAMS } from '@/lib/price-service';
+import { getAveragePrices, calculateHotnessScoreV2, DEFAULT_HOTNESS_PARAMS, normalizeV2HotnessParams, HotnessScoreParams } from '@/lib/price-service';
 
 interface UpdatePricesAndHotnessRequest {
   numberOfDaysInPeriod?: number;
   amountOfPeriods?: number;
-  hotnessVersion?: 'v1' | 'v2';
-  hotnessParams?: typeof DEFAULT_HOTNESS_PARAMS;
+  hotnessParams?: Partial<HotnessScoreParams>;
 }
 
 export async function POST(
@@ -26,7 +25,6 @@ export async function POST(
     const {
       numberOfDaysInPeriod = 7,
       amountOfPeriods = 8,
-      hotnessVersion = 'v1',
       hotnessParams = DEFAULT_HOTNESS_PARAMS
     } = body;
 
@@ -77,15 +75,16 @@ export async function POST(
       }, { status: 502 });
     }
 
+    const normalizedHotnessParams = normalizeV2HotnessParams(hotnessParams);
+
     // Step 3: Calculate hotness score
     let hotnessScore = null;
     if (priceData.periods.length >= 2) {
       try {
         // getAveragePrices returns periods in most-recent-first order
         const periods = priceData.periods.slice();
-        const calculationFunction = hotnessVersion === 'v2' ? calculateHotnessScoreV2 : calculateHotnessScore;
-        hotnessScore = Math.round(calculationFunction(periods, hotnessParams));
-        console.log(`Calculated hotness score (v${hotnessVersion}): ${hotnessScore}`);
+        hotnessScore = Math.round(calculateHotnessScoreV2(periods, normalizedHotnessParams));
+        console.log(`Calculated hotness score (v2): ${hotnessScore}`);
       } catch (error) {
         console.error(`Error calculating hotness score for ${symbolData.symbol}:`, error);
         // Continue without hotness score rather than failing
@@ -147,8 +146,8 @@ export async function POST(
       },
       hotnessScore: {
         score: hotnessScore,
-        version: hotnessVersion,
-        parameters: hotnessParams
+        version: 'v2',
+        parameters: normalizedHotnessParams
       }
     });
 

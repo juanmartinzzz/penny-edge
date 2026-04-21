@@ -10,6 +10,7 @@ import { SymbolDetailsDrawerV2 } from '@/components/SymbolDetailsDrawerV2';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { AveragePriceData } from '@/types/symbol';
 import { generateTradingViewUrl } from '@/utils/trading-view';
+import { DEFAULT_HOTNESS_PARAMS, normalizeV2HotnessParams } from '@/lib/price-service';
 
 
 const EXCHANGE_OPTIONS = [
@@ -109,17 +110,9 @@ export default function MarketSnapshotPage() {
   // Hotness Score Calculation state
   const [hotnessNumberOfDaysInPeriod, setHotnessNumberOfDaysInPeriod] = useState<string>('3');
   const [hotnessAmountOfPeriods, setHotnessAmountOfPeriods] = useState<string>('10');
-  const [hotnessDropSensitivity, setHotnessDropSensitivity] = useState<string>('15');
-  const [hotnessDropMaxScore, setHotnessDropMaxScore] = useState<string>('70');
-  const [hotnessVolatilityThreshold, setHotnessVolatilityThreshold] = useState<string>('2.0');
-  const [hotnessVolatilityMaxBonus, setHotnessVolatilityMaxBonus] = useState<string>('30');
-  const [hotnessDowntrendPenalty, setHotnessDowntrendPenalty] = useState<string>('0.5');
-  const [hotnessStableMultiplier, setHotnessStableMultiplier] = useState<string>('0.7');
-  const [hotnessUptrendMultiplier, setHotnessUptrendMultiplier] = useState<string>('1.0');
-  const [hotnessTrendBoundary, setHotnessTrendBoundary] = useState<string>('3.0');
-  const [hotnessAverageTradedValueThreshold, setHotnessAverageTradedValueThreshold] = useState<string>('10000');
+  const [hotnessDropMaxScore, setHotnessDropMaxScore] = useState<string>(String(DEFAULT_HOTNESS_PARAMS.dropMaxScore));
+  const [hotnessVolatilityMaxBonus, setHotnessVolatilityMaxBonus] = useState<string>(String(DEFAULT_HOTNESS_PARAMS.volatilityMaxBonus));
   const [hotnessStaleAfterMinutes, setHotnessStaleAfterMinutes] = useState<string>('30');
-  const [hotnessVersion, setHotnessVersion] = useState<'v1' | 'v2'>('v2');
   const [isRefreshingHotness, setIsRefreshingHotness] = useState(false);
   const [hotnessRefreshProgress, setHotnessRefreshProgress] = useState<{
     processed: number;
@@ -127,7 +120,26 @@ export default function MarketSnapshotPage() {
     currentSymbol: string;
     errors: string[];
   } | null>(null);
-  const [showAdvancedHotnessSettings, setShowAdvancedHotnessSettings] = useState(false);
+
+  const clampHotnessScore = (value: number) => Math.min(100, Math.max(0, value));
+
+  const handleDropMaxScoreChange = (value: string) => {
+    const parsedValue = parseFloat(value);
+    const dropMaxScore = clampHotnessScore(Number.isFinite(parsedValue) ? parsedValue : DEFAULT_HOTNESS_PARAMS.dropMaxScore);
+    const balancedParams = normalizeV2HotnessParams({ dropMaxScore });
+    setHotnessDropMaxScore(String(dropMaxScore));
+    setHotnessVolatilityMaxBonus(String(balancedParams.volatilityMaxBonus));
+  };
+
+  const handleVolatilityMaxBonusChange = (value: string) => {
+    const parsedValue = parseFloat(value);
+    const volatilityMaxBonus = clampHotnessScore(
+      Number.isFinite(parsedValue) ? parsedValue : DEFAULT_HOTNESS_PARAMS.volatilityMaxBonus
+    );
+    const balancedParams = normalizeV2HotnessParams({ volatilityMaxBonus, dropMaxScore: 100 - volatilityMaxBonus });
+    setHotnessVolatilityMaxBonus(String(volatilityMaxBonus));
+    setHotnessDropMaxScore(String(balancedParams.dropMaxScore));
+  };
 
   // Extract actual values from display strings
   const getExchangeCode = (display: string) => display.split(' - ')[0];
@@ -380,17 +392,10 @@ export default function MarketSnapshotPage() {
         } : null);
 
         try {
-          const hotnessParams = {
-            dropSensitivity: parseFloat(hotnessDropSensitivity),
+          const hotnessParams = normalizeV2HotnessParams({
             dropMaxScore: parseFloat(hotnessDropMaxScore),
-            volatilityThreshold: parseFloat(hotnessVolatilityThreshold),
             volatilityMaxBonus: parseFloat(hotnessVolatilityMaxBonus),
-            downtrendPenalty: parseFloat(hotnessDowntrendPenalty),
-            stableMultiplier: parseFloat(hotnessStableMultiplier),
-            uptrendMultiplier: parseFloat(hotnessUptrendMultiplier),
-            trendBoundary: parseFloat(hotnessTrendBoundary),
-            averageTradedValueThreshold: parseFloat(hotnessAverageTradedValueThreshold),
-          };
+          });
 
           const refreshResponse = await fetch(`/api/symbols-v2/update-prices-and-hotness/${symbol.id}`, {
             method: 'POST',
@@ -400,7 +405,6 @@ export default function MarketSnapshotPage() {
             body: JSON.stringify({
               numberOfDaysInPeriod: parseInt(hotnessNumberOfDaysInPeriod),
               amountOfPeriods: parseInt(hotnessAmountOfPeriods),
-              hotnessVersion,
               hotnessParams,
             }),
           });
@@ -649,7 +653,6 @@ export default function MarketSnapshotPage() {
 
             {/* Configuration Section */}
             <div className="space-y-6 mb-6">
-              {/* Basic Parameters */}
               <div className="flex flex-wrap gap-6">
                 <div className="flex-1 min-w-0">
                   <NumericInput
@@ -684,195 +687,67 @@ export default function MarketSnapshotPage() {
                     center={true}
                   />
                 </div>
-                <div className="flex-1 min-w-0">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Hotness Algorithm Version
-                  </label>
-                  <PillList
-                    options={['V1', 'V2']}
-                    selected={hotnessVersion === 'v1' ? ['V1'] : ['V2']}
-                    onChange={(selected) => {
-                      if (selected.includes('V1')) {
-                        setHotnessVersion('v1');
-                      } else if (selected.includes('V2')) {
-                        setHotnessVersion('v2');
-                      }
-                    }}
-                    variant="single"
-                    size="sm"
-                  />
-                </div>
               </div>
 
-              {/* Advanced Settings Toggle */}
-              <div className="border-t border-gray-200 pt-4">
-                <button
-                  onClick={() => setShowAdvancedHotnessSettings(!showAdvancedHotnessSettings)}
-                  className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
-                >
-                  {showAdvancedHotnessSettings ? (
-                    <>
-                      <ChevronUp className="w-4 h-4" />
-                      Hide Advanced Settings
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="w-4 h-4" />
-                      Show Advanced Settings
-                    </>
-                  )}
-                </button>
-
-                {/* Advanced Settings */}
-                {showAdvancedHotnessSettings && (
-                  <div className="mt-4 space-y-6">
-                    {/* Row 1: Drop Parameters */}
-                    <div className="flex flex-wrap gap-6">
-                      <div className="flex-1 min-w-0">
+              <div className="border border-gray-200 rounded-md p-4 bg-gray-50">
+                <h3 className="text-sm font-medium text-[#14171f] mb-4">
+                  Hotness Allocation (kept at 100 total)
+                </h3>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-[#14171f]">
+                      Drop Max Score (points reserved for recent drop)
+                    </label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={hotnessDropMaxScore || '0'}
+                        onChange={(event) => handleDropMaxScoreChange(event.target.value)}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <div className="w-24">
                         <NumericInput
-                          label="Drop Sensitivity"
-                          min={1}
-                          max={50}
-                          value={hotnessDropSensitivity}
-                          onChange={setHotnessDropSensitivity}
-                          placeholder="15"
-                          center={true}
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Higher values make the score rise faster on smaller price drops.
-                        </p>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <NumericInput
-                          label="Drop Max Score"
-                          min={10}
-                          max={100}
                           value={hotnessDropMaxScore}
-                          onChange={setHotnessDropMaxScore}
-                          placeholder="70"
-                          center={true}
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Caps how many points can come from the drop part of the score.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Row 2: Volatility Parameters */}
-                    <div className="flex flex-wrap gap-6">
-                      <div className="flex-1 min-w-0">
-                        <NumericInput
-                          label="Volatility Threshold"
-                          min={0.1}
-                          max={10.0}
-                          value={hotnessVolatilityThreshold}
-                          onChange={setHotnessVolatilityThreshold}
-                          placeholder="2.0"
-                          center={true}
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Volatility must be at least this much before extra bonus points are possible.
-                        </p>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <NumericInput
-                          label="Volatility Max Bonus"
-                          min={5}
-                          max={50}
-                          value={hotnessVolatilityMaxBonus}
-                          onChange={setHotnessVolatilityMaxBonus}
-                          placeholder="30"
-                          center={true}
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Limits the total bonus you can earn from volatility.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Row 3: Trend Parameters */}
-                    <div className="flex flex-wrap gap-6">
-                      <div className="flex-1 min-w-0">
-                        <NumericInput
-                          label="Downtrend Penalty"
-                          min={0.1}
-                          max={1.0}
-                          value={hotnessDowntrendPenalty}
-                          onChange={setHotnessDowntrendPenalty}
-                          placeholder="0.5"
-                          center={true}
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Reduces volatility bonus for stocks still trending down to be more cautious.
-                        </p>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <NumericInput
-                          label="Stable Multiplier"
-                          min={0.1}
-                          max={1.0}
-                          value={hotnessStableMultiplier}
-                          onChange={setHotnessStableMultiplier}
-                          placeholder="0.7"
-                          center={true}
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Gives a middle-level volatility bonus when price is neither up nor down enough.
-                        </p>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <NumericInput
-                          label="Uptrend Multiplier"
-                          min={0.1}
-                          max={2.0}
-                          value={hotnessUptrendMultiplier}
-                          onChange={setHotnessUptrendMultiplier}
-                          placeholder="1.0"
-                          center={true}
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Gives the biggest volatility bonus to stocks in a positive trend.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Row 4: Boundary Parameters */}
-                    <div className="flex flex-wrap gap-6">
-                      <div className="flex-1 min-w-0">
-                        <NumericInput
-                          label="Trend Boundary"
-                          min={1.0}
-                          max={10.0}
-                          value={hotnessTrendBoundary}
-                          onChange={setHotnessTrendBoundary}
-                          placeholder="3.0"
-                          center={true}
-                        />
-                        <p className="mt-1 text-xs text-gray-500">
-                          Defines how much price movement is needed before it counts as clearly up or down.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Row 5: Trading Value Threshold */}
-                    <div className="flex flex-wrap gap-6">
-                      <div className="flex-1 min-w-0">
-                        <NumericInput
-                          label="Avg Traded Value Threshold"
+                          onChange={handleDropMaxScoreChange}
                           min={0}
-                          value={hotnessAverageTradedValueThreshold}
-                          onChange={setHotnessAverageTradedValueThreshold}
-                          placeholder="10000"
-                          formatAsKMB={true}
-                          center={true}
+                          max={100}
+                          size="sm"
                         />
-                        <p className="mt-1 text-xs text-gray-500">
-                          If all periods are below this volume-value floor, the final score is cut in half.
-                        </p>
                       </div>
                     </div>
                   </div>
-                )}
+                  <div className="space-y-2">
+                    <label className="block text-sm font-medium text-[#14171f]">
+                      Volatility Bonus (points reserved for momentum premium)
+                    </label>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input
+                        type="range"
+                        min={0}
+                        max={100}
+                        step={1}
+                        value={hotnessVolatilityMaxBonus || '0'}
+                        onChange={(event) => handleVolatilityMaxBonusChange(event.target.value)}
+                        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
+                      />
+                      <div className="w-24">
+                        <NumericInput
+                          value={hotnessVolatilityMaxBonus}
+                          onChange={handleVolatilityMaxBonusChange}
+                          min={0}
+                          max={100}
+                          size="sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Drop Max Score + Volatility Bonus is always clamped to <strong>100</strong>.
+                  </p>
+                </div>
               </div>
             </div>
 
