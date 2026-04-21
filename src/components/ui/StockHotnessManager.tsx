@@ -209,54 +209,58 @@ export function StockHotnessManager({
             </Button>
           </div>
 
-          <div className="border rounded-md p-3 bg-gray-50 space-y-4">
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-[#14171f]">Drop Max Score</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={dropMaxScore || '0'}
-                  onChange={(event) => handleDropMaxScoreChange(event.target.value)}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                />
-                <div className="w-24">
-                  <Input
-                    type="number"
-                    value={dropMaxScore}
-                    onChange={handleDropMaxScoreChange}
-                    size="sm"
+          <div className="border rounded-md p-3 bg-gray-50">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-[#14171f]">Drop Max Score</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={dropMaxScore || '0'}
+                    onChange={(event) => handleDropMaxScoreChange(event.target.value)}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                   />
+                  <div className="w-24">
+                    <Input
+                      type="number"
+                      value={dropMaxScore}
+                      onChange={handleDropMaxScoreChange}
+                      size="sm"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-[#14171f]">Volatility Bonus</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="range"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={volatilityMaxBonus || '0'}
-                  onChange={(event) => handleVolatilityMaxBonusChange(event.target.value)}
-                  className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                />
-                <div className="w-24">
-                  <Input
-                    type="number"
-                    value={volatilityMaxBonus}
-                    onChange={handleVolatilityMaxBonusChange}
-                    size="sm"
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-[#14171f]">Volatility Bonus</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={volatilityMaxBonus || '0'}
+                    onChange={(event) => handleVolatilityMaxBonusChange(event.target.value)}
+                    className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
                   />
+                  <div className="w-24">
+                    <Input
+                      type="number"
+                      value={volatilityMaxBonus}
+                      onChange={handleVolatilityMaxBonusChange}
+                      size="sm"
+                    />
+                  </div>
                 </div>
               </div>
+              <div className="md:col-span-2">
+                <p className="text-xs text-gray-600">
+                  Kept linked automatically so total allocation is always <strong>100</strong>.
+                </p>
+              </div>
             </div>
-            <p className="text-xs text-gray-600">
-              Kept linked automatically so total allocation is always <strong>100</strong>.
-            </p>
           </div>
         </div>
       )}

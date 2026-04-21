@@ -772,7 +772,6 @@ export default function MarketSnapshotPage() {
                     </div>
                   </div>
                 )}
-                </div>
               </div>
             </div>
 
