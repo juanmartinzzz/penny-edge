@@ -121,8 +121,33 @@ export default function MarketSnapshotPage() {
     errors: string[];
   } | null>(null);
   const [showAdvancedHotnessSettings, setShowAdvancedHotnessSettings] = useState(false);
+  const [expandedExchanges, setExpandedExchanges] = useState<Record<string, boolean>>({
+    TOR: true,
+    VAN: true,
+    NYQ: true,
+    NMS: true,
+    ASE: true,
+    PCX: true,
+  });
 
   const clampHotnessScore = (value: number) => Math.min(100, Math.max(0, value));
+
+  const toggleExchange = (code: string) => {
+    setExpandedExchanges((prev) => ({ ...prev, [code]: !prev[code] }));
+  };
+
+  const getExchangeSymbols = (exchangeCode: string) => {
+    return warmSymbols
+      .filter((symbol) => {
+        const symEx = symbol.exchange || '';
+        // Flexible matching for exchange codes from DB vs our codes
+        return symEx === exchangeCode || 
+               symEx.includes(exchangeCode) || 
+               exchangeCode.includes(symEx) ||
+               getExchangeCode(exchangeCode) === symEx;
+      })
+      .sort((a, b) => (b.hotness_score || 0) - (a.hotness_score || 0));
+  };
 
   const handleDropMaxScoreChange = (value: string) => {
     const parsedValue = parseFloat(value);
@@ -355,7 +380,7 @@ export default function MarketSnapshotPage() {
     setSelectedSymbol(null);
   };
 
-  const handleRefreshHotnessScores = async () => {
+  const handleRefreshHotnessScores = async (targetExchangeCode?: string) => {
     setIsRefreshingHotness(true);
     setHotnessRefreshProgress({ processed: 0, total: 0, currentSymbol: '', errors: [] });
 
@@ -366,12 +391,20 @@ export default function MarketSnapshotPage() {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       const result = await response.json();
-      const allWarmSymbols = result.warmSymbols || [];
+      let allWarmSymbols = result.warmSymbols || [];
+
+      // If targeting a specific exchange, filter to only those symbols
+      if (targetExchangeCode) {
+        allWarmSymbols = allWarmSymbols.filter((symbol: WarmSymbol) => {
+          const symEx = symbol.exchange || '';
+          return symEx === targetExchangeCode || symEx.includes(targetExchangeCode) || targetExchangeCode.includes(symEx);
+        });
+      }
 
       // Filter symbols that need refreshing based on staleness
       const now = new Date();
       const staleAfterMinutes = parseInt(hotnessStaleAfterMinutes) || 30;
-      const symbolsToRefresh = allWarmSymbols.filter((symbol) => {
+      const symbolsToRefresh = allWarmSymbols.filter((symbol: WarmSymbol) => {
         if (!symbol.last_updated_hotness_score) return true; // Never updated
 
         const lastUpdated = new Date(symbol.last_updated_hotness_score);
@@ -460,192 +493,11 @@ export default function MarketSnapshotPage() {
             </p>
           </div>
 
-          {/* Warm Symbol Filters */}
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Warm Symbol Filters
-              </h2>
-              <Button
-                variant="ghost"
-                size="xs"
-                onClick={() => setShowWarmFilters(!showWarmFilters)}
-                className="p-2"
-              >
-                {showWarmFilters ? (
-                  <ChevronUp className="w-5 h-5" />
-                ) : (
-                  <ChevronDown className="w-5 h-5" />
-                )}
-              </Button>
-            </div>
-            {showWarmFilters && (
-              <>
-                <div className="space-y-6 mb-6 mt-6">
-              {/* Row 1: Exchange Selection */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Exchange
-                </label>
-                <PillList
-                  options={EXCHANGE_OPTIONS}
-                  selected={[warmExchange]}
-                  onChange={handleWarmExchangeChange}
-                  variant="single"
-                  size="xs"
-                />
-              </div>
-
-              {/* Row 2: Other Fields */}
-              <div className="flex flex-wrap gap-6">
-                {/* Min Avg Volume (10d) */}
-                <div className="flex-1 min-w-0 text-center">
-                  <NumericInput
-                    label="Min Avg Volume (10d)"
-                    min={0}
-                    value={minAvgVolume10d}
-                    onChange={setMinAvgVolume10d}
-                    placeholder="200K"
-                    formatAsKMB={true}
-                    center={true}
-                  />
-                  {warmScanResult?.filterBreakdown.minAvgVolume10d && (
-                    <div className="text-lg text-gray-700 mt-2 text-center">
-                      <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minAvgVolume10d.percentageFiltered}%</div>
-                      <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minAvgVolume10d.passed)} passed</div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Min Avg Volume (3M) */}
-                <div className="flex-1 min-w-0">
-                  <NumericInput
-                    label="Min Avg Volume (3M)"
-                    min={0}
-                    value={minAvgVolume3m}
-                    onChange={setMinAvgVolume3m}
-                    placeholder="500K"
-                    formatAsKMB={true}
-                    center={true}
-                  />
-                  {warmScanResult?.filterBreakdown.minAvgVolume3m && (
-                    <div className="text-lg text-gray-700 mt-2 text-center">
-                      <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minAvgVolume3m.percentageFiltered}%</div>
-                      <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minAvgVolume3m.passed)} passed</div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Min Aprox Daily Value Traded */}
-                <div className="flex-1 min-w-0">
-                  <NumericInput
-                    label={
-                      <span>
-                        Min Aprox Daily Value Traded{' '}
-                        <span
-                          className="inline-flex items-center justify-center w-4 h-4 bg-gray-200 text-gray-600 rounded-full text-xs font-medium cursor-help"
-                          title="AvgVol(3M) × 50D Avg / 90"
-                        >
-                          ?
-                        </span>
-                      </span>
-                    }
-                    min={0}
-                    value={minComputationValue}
-                    onChange={setMinComputationValue}
-                    placeholder="2M"
-                    formatAsKMB={true}
-                    center={true}
-                  />
-                  {warmScanResult?.filterBreakdown.minComputationValue && (
-                    <div className="text-lg text-gray-700 mt-2 text-center">
-                      <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minComputationValue.percentageFiltered}%</div>
-                      <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minComputationValue.passed)} passed</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-6">
-              <div className="flex flex-wrap gap-3">
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={handleScanWarmSymbols}
-                  disabled={isScanningWarmSymbols}
-                  className="w-full md:w-auto"
-                >
-                  {isScanningWarmSymbols ? 'Scanning Warm Symbols...' : 'Scan Warm Symbols'}
-                </Button>
-                <Button
-                  variant="secondary"
-                  size="md"
-                  onClick={handleUpdateWarmSymbols}
-                  disabled={isUpdatingWarmSymbols || !canUpdateWarmSymbols || isScanningWarmSymbols}
-                  className="w-full md:w-auto"
-                >
-                  {isUpdatingWarmSymbols ? 'Updating Warm Symbols...' : 'Update Warm Symbols'}
-                </Button>
-              </div>
-
-              {!lastSuccessfulScanSignature && (
-                <div className="mt-2 text-sm text-gray-500">
-                  Run &quot;Scan Warm Symbols&quot; before updating warm symbols.
-                </div>
-              )}
-              {!canUpdateWarmSymbols && lastSuccessfulScanSignature && (
-                <div className="mt-2 text-sm text-amber-600">
-                  Filters changed. Scan Warm Symbols again to enable Update Warm Symbols.
-                </div>
-              )}
-
-              {warmScanResult && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-md">
-                  <div className="text-sm text-gray-700 mb-2">
-                    <span className="font-medium">Total symbols in market:</span> {warmScanResult.totalSymbols.toLocaleString()}
-                  </div>
-                  <div className="text-sm text-gray-700 mb-2">
-                    <span className="font-medium">Warm symbols found:</span> {warmScanResult.warmSymbols.toLocaleString()}
-                  </div>
-                  {warmScanResult.filterBreakdown.minAvgVolume10d && (
-                    <div className="text-lg text-gray-700 mt-2 text-center">
-                      <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minAvgVolume10d.percentageFiltered}%</div>
-                      <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minAvgVolume10d.passed)} passed</div>
-                    </div>
-                  )}
-
-                  {warmScanResult.filterBreakdown.minAvgVolume3m && (
-                    <div className="text-lg text-gray-700 mt-2 text-center">
-                      <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minAvgVolume3m.percentageFiltered}%</div>
-                      <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minAvgVolume3m.passed)} passed</div>
-                    </div>
-                  )}
-
-                  {warmScanResult.filterBreakdown.minComputationValue && (
-                    <div className="text-lg text-gray-700 mt-2 text-center">
-                      <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minComputationValue.percentageFiltered}%</div>
-                      <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minComputationValue.passed)} passed</div>
-                    </div>
-                  )}
-
-                  {warmUpdateResult && (
-                    <div className="text-sm text-gray-700 mt-3">
-                      <span className="font-medium">Database updates:</span> {warmUpdateResult.created} created, {warmUpdateResult.updated} updated
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-              </>
-            )}
-          </div>
-
-          {/* Calculate Hotness Score Section */}
+          {/* Global Hotness Score (shared across exchanges - configs now apply per the active exchange section) */}
           <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-semibold text-gray-900">
-                Calculate Hotness Score
+                Calculate Hotness Score (Global)
               </h2>
               <div className="text-sm text-gray-700">
                 <span className="font-medium">Total warm symbols:</span> {warmSymbols.length.toLocaleString()}
@@ -780,11 +632,11 @@ export default function MarketSnapshotPage() {
               <Button
                 variant="secondary"
                 size="md"
-                onClick={handleRefreshHotnessScores}
+                onClick={() => handleRefreshHotnessScores()}
                 disabled={isRefreshingHotness || warmSymbols.length === 0}
                 className="w-full md:w-auto"
               >
-                {isRefreshingHotness ? 'Refreshing Hotness Scores...' : 'Refresh Hotness Scores'}
+                {isRefreshingHotness ? 'Refreshing Hotness Scores...' : 'Refresh Hotness Scores (All)'}
               </Button>
 
               {hotnessRefreshProgress && (
@@ -813,43 +665,219 @@ export default function MarketSnapshotPage() {
             </div>
           </div>
 
-          {/* Warm Symbols Section */}
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Warm Symbols
-              </h2>
-              <div className="text-sm text-gray-700">
-                <span className="font-medium">Total warm symbols:</span> {warmSymbols.length.toLocaleString()}
-              </div>
-              {isLoadingWarmSymbols && (
-                <div className="text-sm text-gray-500">Loading...</div>
-              )}
-            </div>
+          {/* Per-Exchange Warm Sections (replaces old single Warm Filters + global symbols) */}
+          <div className="space-y-6">
+            {EXCHANGE_OPTIONS.map((exchangeDisplay) => {
+              const code = getExchangeCode(exchangeDisplay);
+              const symbolsForExchange = getExchangeSymbols(code);
+              const isExpanded = expandedExchanges[code] !== false;
 
-            {warmSymbols.length > 0 ? (
-              <div className="flex flex-wrap gap-2">
-                {warmSymbols.map((symbol) => (
-                  <Pill
-                    key={symbol.id}
-                    size="xs"
-                    onClick={() => handleSymbolClick(symbol)}
-                    className="cursor-pointer"
+              return (
+                <div key={code} className="bg-white rounded-lg shadow-sm p-6">
+                  <div 
+                    className="flex items-center justify-between cursor-pointer mb-6"
+                    onClick={() => {
+                      toggleExchange(code);
+                      // Switch active exchange and load its preset when opening
+                      if (!isExpanded) {
+                        setWarmExchange(exchangeDisplay);
+                        applyWarmFilterPresetForExchange(exchangeDisplay);
+                      }
+                    }}
                   >
-                    <div className="flex items-center gap-1">
-                      <span>{symbol.symbol}</span>
-                      <HotnessScorePill score={symbol.hotness_score} size="xs" />
+                    <div>
+                      <h2 className="text-xl font-semibold text-gray-900 flex items-center gap-3">
+                        {exchangeDisplay}
+                        <span className="px-3 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded-full">
+                          {symbolsForExchange.length} warm
+                        </span>
+                      </h2>
+                      <p className="text-sm text-gray-500 mt-1">Warm Detection, Hotness Config, and Symbols scoped to this exchange</p>
                     </div>
-                  </Pill>
-                ))}
-              </div>
-            ) : (
-              !isLoadingWarmSymbols && (
-                <div className="text-center py-8 text-gray-500">
-                  <p>No warm symbols found. Run the warm symbol filters to populate this section.</p>
+                    <Button
+                      variant="ghost"
+                      size="xs"
+                      className="p-2"
+                    >
+                      {isExpanded ? (
+                        <ChevronUp className="w-5 h-5" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5" />
+                      )}
+                    </Button>
+                  </div>
+
+                  {isExpanded && (
+                    <div className="space-y-8">
+                      {/* Warm Detection Config Card */}
+                      <div className="border border-gray-200 rounded-lg p-6 bg-gray-50">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-lg font-semibold text-gray-900">Warm Detection Config</h3>
+                          <div className="text-xs text-emerald-600 font-medium">for {code}</div>
+                        </div>
+
+                        <div className="space-y-6">
+                          <div className="flex flex-wrap gap-6">
+                            {/* Min Avg Volume (10d) */}
+                            <div className="flex-1 min-w-0 text-center">
+                              <NumericInput
+                                label="Min Avg Volume (10d)"
+                                min={0}
+                                value={minAvgVolume10d}
+                                onChange={setMinAvgVolume10d}
+                                placeholder="200K"
+                                formatAsKMB={true}
+                                center={true}
+                              />
+                              {warmScanResult?.filterBreakdown.minAvgVolume10d && (
+                                <div className="text-lg text-gray-700 mt-2 text-center">
+                                  <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minAvgVolume10d.percentageFiltered}%</div>
+                                  <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minAvgVolume10d.passed)} passed</div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Min Avg Volume (3M) */}
+                            <div className="flex-1 min-w-0">
+                              <NumericInput
+                                label="Min Avg Volume (3M)"
+                                min={0}
+                                value={minAvgVolume3m}
+                                onChange={setMinAvgVolume3m}
+                                placeholder="500K"
+                                formatAsKMB={true}
+                                center={true}
+                              />
+                              {warmScanResult?.filterBreakdown.minAvgVolume3m && (
+                                <div className="text-lg text-gray-700 mt-2 text-center">
+                                  <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minAvgVolume3m.percentageFiltered}%</div>
+                                  <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minAvgVolume3m.passed)} passed</div>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Min Aprox Daily Value Traded */}
+                            <div className="flex-1 min-w-0">
+                              <NumericInput
+                                label={
+                                  <span>
+                                    Min Aprox Daily Value Traded{' '}
+                                    <span
+                                      className="inline-flex items-center justify-center w-4 h-4 bg-gray-200 text-gray-600 rounded-full text-xs font-medium cursor-help"
+                                      title="AvgVol(3M) × 50D Avg / 90"
+                                    >
+                                      ?
+                                    </span>
+                                  </span>
+                                }
+                                min={0}
+                                value={minComputationValue}
+                                onChange={setMinComputationValue}
+                                placeholder="2M"
+                                formatAsKMB={true}
+                                center={true}
+                              />
+                              {warmScanResult?.filterBreakdown.minComputationValue && (
+                                <div className="text-lg text-gray-700 mt-2 text-center">
+                                  <div className="font-bold text-xl">{warmScanResult.filterBreakdown.minComputationValue.percentageFiltered}%</div>
+                                  <div className="text-sm text-gray-600">{formatNumber(warmScanResult.filterBreakdown.minComputationValue.passed)} passed</div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex flex-wrap gap-3 pt-4 border-t">
+                            <Button
+                              variant="secondary"
+                              size="md"
+                              onClick={handleScanWarmSymbols}
+                              disabled={isScanningWarmSymbols}
+                              className="w-full md:w-auto"
+                            >
+                              {isScanningWarmSymbols ? 'Scanning...' : 'Scan Warm Symbols'}
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              size="md"
+                              onClick={handleUpdateWarmSymbols}
+                              disabled={isUpdatingWarmSymbols || !canUpdateWarmSymbols || isScanningWarmSymbols}
+                              className="w-full md:w-auto"
+                            >
+                              {isUpdatingWarmSymbols ? 'Updating...' : 'Update Warm Symbols'}
+                            </Button>
+                          </div>
+
+                          {warmScanResult && (
+                            <div className="p-4 bg-white rounded-md border">
+                              <div className="text-sm text-gray-700 mb-2">
+                                <span className="font-medium">Total symbols:</span> {warmScanResult.totalSymbols.toLocaleString()}
+                              </div>
+                              <div className="text-sm text-gray-700 mb-2">
+                                <span className="font-medium">Warm found:</span> {warmScanResult.warmSymbols.toLocaleString()}
+                              </div>
+                              {warmUpdateResult && (
+                                <div className="text-sm text-gray-700 mt-3">
+                                  <span className="font-medium">Updates:</span> {warmUpdateResult.created} created, {warmUpdateResult.updated} updated
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Hotness Score Config Card */}
+                      <div className="border border-gray-200 rounded-lg p-6">
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-lg font-semibold text-gray-900">Hotness Score Config</h3>
+                          <div className="text-xs px-2.5 py-1 bg-amber-100 text-amber-700 rounded">applies to {code} symbols</div>
+                        </div>
+                        <p className="text-sm text-gray-500 mb-6">
+                          Use the global Calculate Hotness Score section below for shared parameters. Refresh button can be triggered per exchange.
+                        </p>
+                        <Button
+                          variant="secondary"
+                          size="md"
+                          onClick={() => handleRefreshHotnessScores(code)}
+                          disabled={isRefreshingHotness || symbolsForExchange.length === 0}
+                          className="w-full md:w-auto"
+                        >
+                          {isRefreshingHotness ? 'Refreshing...' : `Refresh Hotness for ${code}`}
+                        </Button>
+                      </div>
+
+                      {/* Symbols Grid for this Exchange */}
+                      <div>
+                        <h4 className="font-medium text-gray-900 mb-4 flex items-center gap-2">
+                          Symbols Grid 
+                          <span className="text-xs text-gray-500">({symbolsForExchange.length})</span>
+                        </h4>
+                        {symbolsForExchange.length > 0 ? (
+                          <div className="flex flex-wrap gap-2">
+                            {symbolsForExchange.map((symbol) => (
+                              <Pill
+                                key={symbol.id}
+                                size="xs"
+                                onClick={() => handleSymbolClick(symbol)}
+                                className="cursor-pointer"
+                              >
+                                <div className="flex items-center gap-1">
+                                  <span>{symbol.symbol}</span>
+                                  <HotnessScorePill score={symbol.hotness_score} size="xs" />
+                                </div>
+                              </Pill>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-12 text-gray-500 border border-dashed border-gray-200 rounded-lg">
+                            No warm symbols yet for this exchange. Configure and run Scan/Update above.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
-              )
-            )}
+              );
+            })}
           </div>
 
         </div>

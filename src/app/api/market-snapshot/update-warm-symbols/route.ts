@@ -354,17 +354,18 @@ export async function scanWarmSymbols(body: UpdateWarmSymbolsRequest): Promise<W
   return { allSymbols, warmSymbols, filterBreakdown };
 }
 
-async function resetAllSymbolsWarmStatus(): Promise<void> {
+async function resetWarmStatusForExchange(exchange: string): Promise<void> {
   const { error } = await supabaseAdmin
     .from(SYMBOLS_V2_TABLE)
     .update({ is_currently_warm: false })
-    .neq('id', '00000000-0000-0000-0000-000000000000'); // Update all records
+    .eq('exchange', exchange)
+    .neq('id', '00000000-0000-0000-0000-000000000000');
 
   if (error) {
-    throw new Error(`Failed to reset warm status: ${error.message}`);
+    throw new Error(`Failed to reset warm status for exchange ${exchange}: ${error.message}`);
   }
 
-  console.log('Reset is_currently_warm to FALSE for all symbols_v2 records');
+  console.log(`Reset is_currently_warm to FALSE for symbols_v2 records with exchange=${exchange}`);
 }
 
 async function getFreshSessionCookies(): Promise<string[]> {
@@ -634,8 +635,8 @@ export async function POST(request: NextRequest) {
 
     console.log('Starting warm symbols update process...');
 
-    // Step 1: Reset all symbols to not warm
-    await resetAllSymbolsWarmStatus();
+    // Step 1: Reset warm status for this exchange only (other exchanges' warm symbols are preserved)
+    await resetWarmStatusForExchange(body.exchange);
 
     // Step 2: Run warm symbol scan and calculate breakdown
     const { allSymbols, warmSymbols, filterBreakdown } = await scanWarmSymbols(body);
