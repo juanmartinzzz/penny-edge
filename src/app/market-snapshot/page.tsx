@@ -86,7 +86,57 @@ interface WarmSymbolUpdateResult extends WarmSymbolScanResult {
   updated: number;
 }
 
+interface HotnessRefreshProgress {
+  processed: number;
+  total: number;
+  currentSymbol: string;
+  errors: string[];
+}
+
+interface HotnessExchangeConfig {
+  numberOfDaysInPeriod: string;
+  amountOfPeriods: string;
+  dropMaxScore: string;
+  volatilityMaxBonus: string;
+  staleAfterMinutes: string;
+  showAdvancedSettings: boolean;
+}
+
 export default function MarketSnapshotPage() {
+  const getExchangeCode = (display: string) => display.split(' - ')[0];
+
+  const getDefaultHotnessConfig = (): HotnessExchangeConfig => ({
+    numberOfDaysInPeriod: '3',
+    amountOfPeriods: '10',
+    dropMaxScore: String(DEFAULT_HOTNESS_PARAMS.dropMaxScore),
+    volatilityMaxBonus: String(DEFAULT_HOTNESS_PARAMS.volatilityMaxBonus),
+    staleAfterMinutes: '30',
+    showAdvancedSettings: false,
+  });
+
+  const initializeHotnessConfig = (): Record<string, HotnessExchangeConfig> => EXCHANGE_OPTIONS.reduce<Record<string, HotnessExchangeConfig>>((acc, exchangeDisplay) => {
+    acc[getExchangeCode(exchangeDisplay)] = getDefaultHotnessConfig();
+    return acc;
+  }, {});
+
+  const initializeHotnessRefreshingState = (): Record<string, boolean> => EXCHANGE_OPTIONS.reduce<Record<string, boolean>>((acc, exchangeDisplay) => {
+    acc[getExchangeCode(exchangeDisplay)] = false;
+    return acc;
+  }, {});
+
+  const getHotnessConfig = (exchangeCode: string): HotnessExchangeConfig => (
+    hotnessSettingsByExchange[exchangeCode] || getDefaultHotnessConfig()
+  );
+
+  const setHotnessConfig = (exchangeCode: string, nextConfig: Partial<HotnessExchangeConfig>) => {
+    setHotnessSettingsByExchange((prev) => ({
+      ...prev,
+      [exchangeCode]: {
+        ...(prev[exchangeCode] || getDefaultHotnessConfig()),
+        ...nextConfig,
+      },
+    }));
+  };
 
   // Warm Symbol Filters state
   const [warmExchange, setWarmExchange] = useState<string>('TOR - TSX (Toronto)');
@@ -107,20 +157,10 @@ export default function MarketSnapshotPage() {
   const [isLoadingWarmSymbols, setIsLoadingWarmSymbols] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
 
-  // Hotness Score Calculation state
-  const [hotnessNumberOfDaysInPeriod, setHotnessNumberOfDaysInPeriod] = useState<string>('3');
-  const [hotnessAmountOfPeriods, setHotnessAmountOfPeriods] = useState<string>('10');
-  const [hotnessDropMaxScore, setHotnessDropMaxScore] = useState<string>(String(DEFAULT_HOTNESS_PARAMS.dropMaxScore));
-  const [hotnessVolatilityMaxBonus, setHotnessVolatilityMaxBonus] = useState<string>(String(DEFAULT_HOTNESS_PARAMS.volatilityMaxBonus));
-  const [hotnessStaleAfterMinutes, setHotnessStaleAfterMinutes] = useState<string>('30');
-  const [isRefreshingHotness, setIsRefreshingHotness] = useState(false);
-  const [hotnessRefreshProgress, setHotnessRefreshProgress] = useState<{
-    processed: number;
-    total: number;
-    currentSymbol: string;
-    errors: string[];
-  } | null>(null);
-  const [showAdvancedHotnessSettings, setShowAdvancedHotnessSettings] = useState(false);
+  // Hotness Score Calculation state (per exchange)
+  const [hotnessSettingsByExchange, setHotnessSettingsByExchange] = useState<Record<string, HotnessExchangeConfig>>(() => initializeHotnessConfig());
+  const [isRefreshingHotnessByExchange, setIsRefreshingHotnessByExchange] = useState<Record<string, boolean>>(() => initializeHotnessRefreshingState());
+  const [hotnessRefreshProgressByExchange, setHotnessRefreshProgressByExchange] = useState<Record<string, HotnessRefreshProgress | null>>({});
   const [expandedExchanges, setExpandedExchanges] = useState<Record<string, boolean>>({
     TOR: true,
     VAN: true,
@@ -149,26 +189,39 @@ export default function MarketSnapshotPage() {
       .sort((a, b) => (b.hotness_score || 0) - (a.hotness_score || 0));
   };
 
-  const handleDropMaxScoreChange = (value: string) => {
+  const handleDropMaxScoreChange = (exchangeCode: string, value: string) => {
     const parsedValue = parseFloat(value);
     const dropMaxScore = clampHotnessScore(Number.isFinite(parsedValue) ? parsedValue : DEFAULT_HOTNESS_PARAMS.dropMaxScore);
     const balancedParams = normalizeV2HotnessParams({ dropMaxScore });
-    setHotnessDropMaxScore(String(dropMaxScore));
-    setHotnessVolatilityMaxBonus(String(balancedParams.volatilityMaxBonus));
+    setHotnessConfig(exchangeCode, {
+      dropMaxScore: String(dropMaxScore),
+      volatilityMaxBonus: String(balancedParams.volatilityMaxBonus),
+    });
   };
 
-  const handleVolatilityMaxBonusChange = (value: string) => {
+  const handleVolatilityMaxBonusChange = (exchangeCode: string, value: string) => {
     const parsedValue = parseFloat(value);
     const volatilityMaxBonus = clampHotnessScore(
       Number.isFinite(parsedValue) ? parsedValue : DEFAULT_HOTNESS_PARAMS.volatilityMaxBonus
     );
     const balancedParams = normalizeV2HotnessParams({ volatilityMaxBonus, dropMaxScore: 100 - volatilityMaxBonus });
-    setHotnessVolatilityMaxBonus(String(volatilityMaxBonus));
-    setHotnessDropMaxScore(String(balancedParams.dropMaxScore));
+    setHotnessConfig(exchangeCode, {
+      volatilityMaxBonus: String(volatilityMaxBonus),
+      dropMaxScore: String(balancedParams.dropMaxScore),
+    });
+  };
+
+  const handleHotnessConfigFieldChange = (exchangeCode: string, field: keyof HotnessExchangeConfig, value: string) => {
+    setHotnessConfig(exchangeCode, { [field]: value });
+  };
+
+  const toggleHotnessAdvancedSettings = (exchangeCode: string) => {
+    setHotnessConfig(exchangeCode, {
+      showAdvancedSettings: !getHotnessConfig(exchangeCode).showAdvancedSettings,
+    });
   };
 
   // Extract actual values from display strings
-  const getExchangeCode = (display: string) => display.split(' - ')[0];
 
   // Helper function to format numbers
   const formatNumber = (num: number) => num.toLocaleString();
@@ -380,9 +433,24 @@ export default function MarketSnapshotPage() {
     setSelectedSymbol(null);
   };
 
-  const handleRefreshHotnessScores = async (targetExchangeCode?: string) => {
-    setIsRefreshingHotness(true);
-    setHotnessRefreshProgress({ processed: 0, total: 0, currentSymbol: '', errors: [] });
+  const handleRefreshHotnessScores = async (targetExchangeCode: string) => {
+    const targetConfig = getHotnessConfig(targetExchangeCode);
+    const staleAfterMinutes = parseInt(targetConfig.staleAfterMinutes, 10) || 30;
+    const numberOfDaysInPeriod = parseInt(targetConfig.numberOfDaysInPeriod, 10) || 3;
+    const amountOfPeriods = parseInt(targetConfig.amountOfPeriods, 10) || 10;
+    const normalizedHotnessParams = normalizeV2HotnessParams({
+      dropMaxScore: parseFloat(targetConfig.dropMaxScore),
+      volatilityMaxBonus: parseFloat(targetConfig.volatilityMaxBonus),
+    });
+
+    setIsRefreshingHotnessByExchange((prev) => ({
+      ...prev,
+      [targetExchangeCode]: true,
+    }));
+    setHotnessRefreshProgressByExchange((prev) => ({
+      ...prev,
+      [targetExchangeCode]: { processed: 0, total: 0, currentSymbol: '', errors: [] },
+    }));
 
     try {
       // Get current warm symbols
@@ -392,18 +460,13 @@ export default function MarketSnapshotPage() {
       }
       const result = await response.json();
       let allWarmSymbols = result.warmSymbols || [];
-
-      // If targeting a specific exchange, filter to only those symbols
-      if (targetExchangeCode) {
-        allWarmSymbols = allWarmSymbols.filter((symbol: WarmSymbol) => {
-          const symEx = symbol.exchange || '';
-          return symEx === targetExchangeCode || symEx.includes(targetExchangeCode) || targetExchangeCode.includes(symEx);
-        });
-      }
+      allWarmSymbols = allWarmSymbols.filter((symbol: WarmSymbol) => {
+        const symEx = symbol.exchange || '';
+        return symEx === targetExchangeCode || symEx.includes(targetExchangeCode) || targetExchangeCode.includes(symEx);
+      });
 
       // Filter symbols that need refreshing based on staleness
       const now = new Date();
-      const staleAfterMinutes = parseInt(hotnessStaleAfterMinutes) || 30;
       const symbolsToRefresh = allWarmSymbols.filter((symbol: WarmSymbol) => {
         if (!symbol.last_updated_hotness_score) return true; // Never updated
 
@@ -413,33 +476,49 @@ export default function MarketSnapshotPage() {
         return minutesDiff > staleAfterMinutes;
       });
 
-      setHotnessRefreshProgress(prev => prev ? { ...prev, total: symbolsToRefresh.length } : null);
+      setHotnessRefreshProgressByExchange((prev) => ({
+        ...prev,
+        [targetExchangeCode]: {
+          ...(prev[targetExchangeCode] || {
+            processed: 0,
+            total: 0,
+            currentSymbol: '',
+            errors: [],
+          }),
+          total: symbolsToRefresh.length,
+          currentSymbol: '',
+          processed: 0,
+        },
+      }));
 
       const errors: string[] = [];
 
       for (let i = 0; i < symbolsToRefresh.length; i++) {
         const symbol = symbolsToRefresh[i];
-        setHotnessRefreshProgress(prev => prev ? {
+        setHotnessRefreshProgressByExchange((prev) => ({
           ...prev,
-          currentSymbol: symbol.symbol,
-          processed: i
-        } : null);
+          [targetExchangeCode]: {
+            ...(prev[targetExchangeCode] || {
+              processed: 0,
+              total: 0,
+              currentSymbol: '',
+              errors: [],
+            }),
+            currentSymbol: symbol.symbol,
+            processed: i,
+          },
+        }));
 
         try {
-          const hotnessParams = normalizeV2HotnessParams({
-            dropMaxScore: parseFloat(hotnessDropMaxScore),
-            volatilityMaxBonus: parseFloat(hotnessVolatilityMaxBonus),
-          });
-
           const refreshResponse = await fetch(`/api/symbols-v2/update-prices-and-hotness/${symbol.id}`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              numberOfDaysInPeriod: parseInt(hotnessNumberOfDaysInPeriod),
-              amountOfPeriods: parseInt(hotnessAmountOfPeriods),
-              hotnessParams,
+              numberOfDaysInPeriod,
+              amountOfPeriods,
+              hotnessParams: normalizedHotnessParams,
             }),
           });
 
@@ -459,7 +538,19 @@ export default function MarketSnapshotPage() {
         }
       }
 
-      setHotnessRefreshProgress(prev => prev ? { ...prev, processed: symbolsToRefresh.length, errors } : null);
+      setHotnessRefreshProgressByExchange((prev) => ({
+        ...prev,
+        [targetExchangeCode]: {
+          ...(prev[targetExchangeCode] || {
+            processed: 0,
+            total: 0,
+            currentSymbol: '',
+            errors: [],
+          }),
+          processed: symbolsToRefresh.length,
+          errors,
+        },
+      }));
 
       // Refresh warm symbols list after completion
       await loadWarmSymbols();
@@ -474,9 +565,17 @@ export default function MarketSnapshotPage() {
       const errorMessage = error instanceof Error ? error.message : 'Failed to refresh hotness scores';
       alert(`Error: ${errorMessage}`);
     } finally {
-      setIsRefreshingHotness(false);
+      setIsRefreshingHotnessByExchange((prev) => ({
+        ...prev,
+        [targetExchangeCode]: false,
+      }));
       // Clear progress after a delay
-      setTimeout(() => setHotnessRefreshProgress(null), 3000);
+      setTimeout(() => {
+        setHotnessRefreshProgressByExchange((prev) => ({
+          ...prev,
+          [targetExchangeCode]: null,
+        }));
+      }, 3000);
     }
   };
 
@@ -493,184 +592,15 @@ export default function MarketSnapshotPage() {
             </p>
           </div>
 
-          {/* Global Hotness Score (shared across exchanges - configs now apply per the active exchange section) */}
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-semibold text-gray-900">
-                Calculate Hotness Score (Global)
-              </h2>
-              <div className="text-sm text-gray-700">
-                <span className="font-medium">Total warm symbols:</span> {warmSymbols.length.toLocaleString()}
-              </div>
-            </div>
-
-            {/* Configuration Section */}
-            <div className="space-y-6 mb-6">
-              <div className="flex flex-wrap gap-6">
-                <div className="flex-1 min-w-0">
-                  <NumericInput
-                    label="Number of Days in Period"
-                    min={1}
-                    max={30}
-                    value={hotnessNumberOfDaysInPeriod}
-                    onChange={setHotnessNumberOfDaysInPeriod}
-                    placeholder="3"
-                    center={true}
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <NumericInput
-                    label="Amount of Periods"
-                    min={2}
-                    max={20}
-                    value={hotnessAmountOfPeriods}
-                    onChange={setHotnessAmountOfPeriods}
-                    placeholder="10"
-                    center={true}
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <NumericInput
-                    label="Stale After Minutes"
-                    min={1}
-                    max={1440}
-                    value={hotnessStaleAfterMinutes}
-                    onChange={setHotnessStaleAfterMinutes}
-                    placeholder="30"
-                    center={true}
-                  />
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-4">
-                <button
-                  onClick={() => setShowAdvancedHotnessSettings(!showAdvancedHotnessSettings)}
-                  className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
-                >
-                  {showAdvancedHotnessSettings ? (
-                    <>
-                      <ChevronUp className="w-4 h-4" />
-                      Hide Advanced Settings
-                    </>
-                  ) : (
-                    <>
-                      <ChevronDown className="w-4 h-4" />
-                      Show Advanced Settings
-                    </>
-                  )}
-                </button>
-
-                {showAdvancedHotnessSettings && (
-                  <div className="mt-4 border border-gray-200 rounded-md p-4 bg-gray-50">
-                    <h3 className="text-sm font-medium text-[#14171f] mb-4">
-                      Hotness Allocation (kept at 100 total)
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium text-[#14171f]">
-                          Drop Max Score (points reserved for recent drop)
-                        </label>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <input
-                            type="range"
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={hotnessDropMaxScore || '0'}
-                            onChange={(event) => handleDropMaxScoreChange(event.target.value)}
-                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                          />
-                          <div className="w-24">
-                            <NumericInput
-                              value={hotnessDropMaxScore}
-                              onChange={handleDropMaxScoreChange}
-                              min={0}
-                              max={100}
-                              size="sm"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <label className="block text-sm font-medium text-[#14171f]">
-                          Volatility Bonus (points reserved for momentum premium)
-                        </label>
-                        <div className="flex flex-wrap items-center gap-3">
-                          <input
-                            type="range"
-                            min={0}
-                            max={100}
-                            step={1}
-                            value={hotnessVolatilityMaxBonus || '0'}
-                            onChange={(event) => handleVolatilityMaxBonusChange(event.target.value)}
-                            className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
-                          />
-                          <div className="w-24">
-                            <NumericInput
-                              value={hotnessVolatilityMaxBonus}
-                              onChange={handleVolatilityMaxBonusChange}
-                              min={0}
-                              max={100}
-                              size="sm"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                      <div className="md:col-span-2">
-                        <p className="text-xs text-gray-500">
-                          Drop Max Score + Volatility Bonus is always clamped to <strong>100</strong>.
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Action Button and Progress */}
-            <div className="mt-6">
-              <Button
-                variant="secondary"
-                size="md"
-                onClick={() => handleRefreshHotnessScores()}
-                disabled={isRefreshingHotness || warmSymbols.length === 0}
-                className="w-full md:w-auto"
-              >
-                {isRefreshingHotness ? 'Refreshing Hotness Scores...' : 'Refresh Hotness Scores (All)'}
-              </Button>
-
-              {hotnessRefreshProgress && (
-                <div className="mt-4 p-4 bg-gray-50 rounded-md">
-                  <div className="text-sm text-gray-700 mb-2">
-                    <span className="font-medium">Progress:</span> {hotnessRefreshProgress.processed} / {hotnessRefreshProgress.total} symbols
-                  </div>
-                  {hotnessRefreshProgress.currentSymbol && (
-                    <div className="text-sm text-gray-700 mb-2">
-                      <span className="font-medium">Current:</span> {hotnessRefreshProgress.currentSymbol}
-                    </div>
-                  )}
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div
-                      className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${hotnessRefreshProgress.total > 0 ? (hotnessRefreshProgress.processed / hotnessRefreshProgress.total) * 100 : 0}%` }}
-                    ></div>
-                  </div>
-                  {hotnessRefreshProgress.errors.length > 0 && (
-                    <div className="text-sm text-red-600 mt-2">
-                      <span className="font-medium">Errors:</span> {hotnessRefreshProgress.errors.length}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
           {/* Per-Exchange Warm Sections (replaces old single Warm Filters + global symbols) */}
           <div className="space-y-6">
             {EXCHANGE_OPTIONS.map((exchangeDisplay) => {
               const code = getExchangeCode(exchangeDisplay);
               const symbolsForExchange = getExchangeSymbols(code);
               const isExpanded = expandedExchanges[code] !== false;
+              const hotnessConfig = getHotnessConfig(code);
+              const hotnessProgress = hotnessRefreshProgressByExchange[code];
+              const isRefreshingCurrentExchange = isRefreshingHotnessByExchange[code] || false;
 
               return (
                 <div key={code} className="bg-white rounded-lg shadow-sm p-6">
@@ -829,20 +759,144 @@ export default function MarketSnapshotPage() {
                       <div className="border border-gray-200 rounded-lg p-6">
                         <div className="flex items-center justify-between mb-4">
                           <h3 className="text-lg font-semibold text-gray-900">Hotness Score Config</h3>
-                          <div className="text-xs px-2.5 py-1 bg-amber-100 text-amber-700 rounded">applies to {code} symbols</div>
+                          <div className="text-xs px-2.5 py-1 bg-amber-100 text-amber-700 rounded">
+                            {isRefreshingCurrentExchange ? 'refreshing...' : `applies to ${code} symbols`}
+                          </div>
                         </div>
-                        <p className="text-sm text-gray-500 mb-6">
-                          Use the global Calculate Hotness Score section below for shared parameters. Refresh button can be triggered per exchange.
-                        </p>
+
+                        <div className="space-y-6 mb-6">
+                          <div className="flex flex-wrap gap-6">
+                            <div className="flex-1 min-w-0">
+                              <NumericInput
+                                label="Number of Days in Period"
+                                min={1}
+                                max={30}
+                                value={hotnessConfig.numberOfDaysInPeriod}
+                                onChange={(value) => handleHotnessConfigFieldChange(code, 'numberOfDaysInPeriod', value)}
+                                placeholder="3"
+                                center={true}
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <NumericInput
+                                label="Amount of Periods"
+                                min={2}
+                                max={20}
+                                value={hotnessConfig.amountOfPeriods}
+                                onChange={(value) => handleHotnessConfigFieldChange(code, 'amountOfPeriods', value)}
+                                placeholder="10"
+                                center={true}
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <NumericInput
+                                label="Stale After Minutes"
+                                min={1}
+                                max={1440}
+                                value={hotnessConfig.staleAfterMinutes}
+                                onChange={(value) => handleHotnessConfigFieldChange(code, 'staleAfterMinutes', value)}
+                                placeholder="30"
+                                center={true}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="border-t border-gray-200 pt-4">
+                            <button
+                              onClick={() => toggleHotnessAdvancedSettings(code)}
+                              className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-gray-900 transition-colors"
+                            >
+                              {hotnessConfig.showAdvancedSettings ? (
+                                <>
+                                  <ChevronUp className="w-4 h-4" />
+                                  Hide Advanced Settings
+                                </>
+                              ) : (
+                                <>
+                                  <ChevronDown className="w-4 h-4" />
+                                  Show Advanced Settings
+                                </>
+                              )}
+                            </button>
+
+                            {hotnessConfig.showAdvancedSettings && (
+                              <div className="mt-4 border border-gray-200 rounded-md p-4 bg-gray-50">
+                                <h3 className="text-sm font-medium text-[#14171f] mb-4">
+                                  Hotness Allocation (kept at 100 total)
+                                </h3>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                  <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-[#14171f]">
+                                      Drop Max Score (points reserved for recent drop)
+                                    </label>
+                                    <div className="flex flex-wrap items-center gap-3">
+                                      <NumericInput
+                                        value={hotnessConfig.dropMaxScore}
+                                        onChange={(value) => handleDropMaxScoreChange(code, value)}
+                                        min={0}
+                                        max={100}
+                                        size="sm"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="block text-sm font-medium text-[#14171f]">
+                                      Volatility Bonus (points reserved for momentum premium)
+                                    </label>
+                                    <div className="flex flex-wrap items-center gap-3">
+                                      <NumericInput
+                                        value={hotnessConfig.volatilityMaxBonus}
+                                        onChange={(value) => handleVolatilityMaxBonusChange(code, value)}
+                                        min={0}
+                                        max={100}
+                                        size="sm"
+                                      />
+                                    </div>
+                                  </div>
+                                  <div className="md:col-span-2">
+                                    <p className="text-xs text-gray-500">
+                                      Drop Max Score + Volatility Bonus is always clamped to <strong>100</strong>.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
                         <Button
                           variant="secondary"
                           size="md"
                           onClick={() => handleRefreshHotnessScores(code)}
-                          disabled={isRefreshingHotness || symbolsForExchange.length === 0}
+                          disabled={isRefreshingCurrentExchange || symbolsForExchange.length === 0}
                           className="w-full md:w-auto"
                         >
-                          {isRefreshingHotness ? 'Refreshing...' : `Refresh Hotness for ${code}`}
+                          {isRefreshingCurrentExchange ? 'Refreshing...' : `Refresh Hotness for ${code}`}
                         </Button>
+
+                        {hotnessProgress && (
+                          <div className="mt-4 p-4 bg-gray-50 rounded-md">
+                            <div className="text-sm text-gray-700 mb-2">
+                              <span className="font-medium">Progress:</span> {hotnessProgress.processed} / {hotnessProgress.total} symbols
+                            </div>
+                            {hotnessProgress.currentSymbol && (
+                              <div className="text-sm text-gray-700 mb-2">
+                                <span className="font-medium">Current:</span> {hotnessProgress.currentSymbol}
+                              </div>
+                            )}
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div
+                                className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                                style={{ width: `${hotnessProgress.total > 0 ? (hotnessProgress.processed / hotnessProgress.total) * 100 : 0}%` }}
+                              ></div>
+                            </div>
+                            {hotnessProgress.errors.length > 0 && (
+                              <div className="text-sm text-red-600 mt-2">
+                                <span className="font-medium">Errors:</span> {hotnessProgress.errors.length}
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
 
                       {/* Symbols Grid for this Exchange */}
