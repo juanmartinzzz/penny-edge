@@ -15,11 +15,6 @@ export default function Home() {
 
           <div className="mt-8">
             <div className="flex flex-wrap gap-4">
-              <Link href="/stocks">
-                <Button variant="primary">
-                  Browse TSX & TSXV Stocks
-                </Button>
-              </Link>
               <Link href="/market-snapshot">
                 <Button variant="primary">
                   Market Snapshot
