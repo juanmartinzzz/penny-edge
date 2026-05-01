@@ -359,20 +359,20 @@ export default function MarketSnapshotPage() {
     });
   }, [isWarmFilterPresetsHydrated, warmExchange, minAvgVolume10d, minAvgVolume3m, minComputationValue]);
 
-  const getWarmSymbolRequestBody = () => ({
-    exchange: getExchangeCode(warmExchange),
+  const getWarmSymbolRequestBody = (exchangeCode: string) => ({
+    exchange: exchangeCode,
     minAvgVolume10d: minAvgVolume10d.trim() === '' ? null : parseWarmSymbolValue(minAvgVolume10d),
     minAvgVolume3m: minAvgVolume3m.trim() === '' ? null : parseWarmSymbolValue(minAvgVolume3m),
     minComputationValue: minComputationValue.trim() === '' ? null : parseWarmSymbolValue(minComputationValue)
   });
 
-  const handleScanWarmSymbols = async () => {
+  const handleScanWarmSymbols = async (exchangeCode: string) => {
     setIsScanningWarmSymbols(true);
     setWarmScanResult(null);
     setWarmUpdateResult(null);
 
     try {
-      const requestBody = getWarmSymbolRequestBody();
+      const requestBody = getWarmSymbolRequestBody(exchangeCode);
 
       const response = await fetch('/api/market-snapshot/scan-warm-symbols', {
         method: 'POST',
@@ -398,8 +398,8 @@ export default function MarketSnapshotPage() {
     }
   };
 
-  const handleUpdateWarmSymbols = async () => {
-    const requestBody = getWarmSymbolRequestBody();
+  const handleUpdateWarmSymbols = async (exchangeCode: string) => {
+    const requestBody = getWarmSymbolRequestBody(exchangeCode);
 
     setIsUpdatingWarmSymbols(true);
     setWarmUpdateResult(null);
@@ -750,7 +750,7 @@ export default function MarketSnapshotPage() {
                             <Button
                               variant="secondary"
                               size="md"
-                              onClick={handleScanWarmSymbols}
+                              onClick={() => handleScanWarmSymbols(code)}
                               disabled={isScanningWarmSymbols}
                               className="w-full md:w-auto"
                             >
@@ -759,7 +759,7 @@ export default function MarketSnapshotPage() {
                             <Button
                               variant="secondary"
                               size="md"
-                              onClick={handleUpdateWarmSymbols}
+                              onClick={() => handleUpdateWarmSymbols(code)}
                           disabled={isUpdatingWarmSymbols}
                               className="w-full md:w-auto"
                             >
