@@ -189,7 +189,6 @@ export default function MarketSnapshotPage() {
   const [showWarmFilters, setShowWarmFilters] = useState(true);
   const [warmScanResult, setWarmScanResult] = useState<WarmSymbolScanResult | null>(null);
   const [warmUpdateResult, setWarmUpdateResult] = useState<WarmSymbolUpdateResult | null>(null);
-  const [lastSuccessfulScanSignature, setLastSuccessfulScanSignature] = useState<string | null>(null);
 
   // Warm Symbols state
   const [warmSymbols, setWarmSymbols] = useState<WarmSymbol[]>([]);
@@ -309,7 +308,6 @@ export default function MarketSnapshotPage() {
     const nextExchange = selected[0] || 'TOR - TSX (Toronto)';
     setWarmExchange(nextExchange);
     applyWarmFilterPresetForExchange(nextExchange);
-    setLastSuccessfulScanSignature(null);
   };
 
   useEffect(() => {
@@ -367,16 +365,11 @@ export default function MarketSnapshotPage() {
     minAvgVolume3m: minAvgVolume3m.trim() === '' ? null : parseWarmSymbolValue(minAvgVolume3m),
     minComputationValue: minComputationValue.trim() === '' ? null : parseWarmSymbolValue(minComputationValue)
   });
-  const getWarmSymbolRequestSignature = (payload: { exchange: string; minAvgVolume10d: number | null; minAvgVolume3m: number | null; minComputationValue: number | null; }) =>
-    JSON.stringify(payload);
-  const currentWarmSymbolSignature = getWarmSymbolRequestSignature(getWarmSymbolRequestBody());
-  const canUpdateWarmSymbols = lastSuccessfulScanSignature !== null && lastSuccessfulScanSignature === currentWarmSymbolSignature;
 
   const handleScanWarmSymbols = async () => {
     setIsScanningWarmSymbols(true);
     setWarmScanResult(null);
     setWarmUpdateResult(null);
-    setLastSuccessfulScanSignature(null);
 
     try {
       const requestBody = getWarmSymbolRequestBody();
@@ -395,7 +388,6 @@ export default function MarketSnapshotPage() {
 
       const result = await response.json();
       setWarmScanResult(result);
-      setLastSuccessfulScanSignature(getWarmSymbolRequestSignature(requestBody));
     } catch (error: unknown) {
       console.error('Error scanning warm symbols:', error);
       const errorMessage = error instanceof Error ? error.message : 'Failed to warm symbol filters';
@@ -408,12 +400,6 @@ export default function MarketSnapshotPage() {
 
   const handleUpdateWarmSymbols = async () => {
     const requestBody = getWarmSymbolRequestBody();
-    const requestSignature = getWarmSymbolRequestSignature(requestBody);
-
-    if (!canUpdateWarmSymbols || requestSignature !== lastSuccessfulScanSignature) {
-      alert('Please run Scan Warm Symbols first before updating warm symbols.');
-      return;
-    }
 
     setIsUpdatingWarmSymbols(true);
     setWarmUpdateResult(null);
@@ -774,7 +760,7 @@ export default function MarketSnapshotPage() {
                               variant="secondary"
                               size="md"
                               onClick={handleUpdateWarmSymbols}
-                              disabled={isUpdatingWarmSymbols || !canUpdateWarmSymbols || isScanningWarmSymbols}
+                          disabled={isUpdatingWarmSymbols}
                               className="w-full md:w-auto"
                             >
                               {isUpdatingWarmSymbols ? 'Updating...' : 'Update Warm Symbols'}
