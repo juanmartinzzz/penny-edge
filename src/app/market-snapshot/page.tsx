@@ -23,6 +23,7 @@ const EXCHANGE_OPTIONS = [
 ];
 
 const WARM_FILTER_PRESETS_STORAGE_KEY = 'market-snapshot:warm-filter-presets';
+const EXCHANGE_EXPANDED_STATE_STORAGE_KEY = 'market-snapshot:exchange-expanded-state';
 
 type WarmSymbolFilterPreset = {
   minAvgVolume10d: string;
@@ -124,6 +125,44 @@ export default function MarketSnapshotPage() {
     return acc;
   }, {});
 
+  const getDefaultExpandedExchanges = (): Record<string, boolean> => {
+    const defaults = EXCHANGE_OPTIONS.reduce<Record<string, boolean>>((acc, exchangeDisplay) => {
+      acc[getExchangeCode(exchangeDisplay)] = true;
+      return acc;
+    }, {});
+
+    return defaults;
+  };
+
+  const initializeExpandedExchanges = (): Record<string, boolean> => {
+    if (typeof window === 'undefined') {
+      return getDefaultExpandedExchanges();
+    }
+
+    try {
+      const stored = localStorage.getItem(EXCHANGE_EXPANDED_STATE_STORAGE_KEY);
+      if (!stored) {
+        return getDefaultExpandedExchanges();
+      }
+
+      const parsed = JSON.parse(stored);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        return getDefaultExpandedExchanges();
+      }
+
+      return EXCHANGE_OPTIONS.reduce<Record<string, boolean>>((acc, exchangeDisplay) => {
+        const exchangeCode = getExchangeCode(exchangeDisplay);
+        const value = parsed[exchangeCode];
+
+        acc[exchangeCode] = typeof value === 'boolean' ? value : true;
+        return acc;
+      }, {});
+    } catch (error) {
+      console.error('Error loading expanded exchange state:', error);
+      return getDefaultExpandedExchanges();
+    }
+  };
+
   const getHotnessConfig = (exchangeCode: string): HotnessExchangeConfig => (
     hotnessSettingsByExchange[exchangeCode] || getDefaultHotnessConfig()
   );
@@ -161,20 +200,25 @@ export default function MarketSnapshotPage() {
   const [hotnessSettingsByExchange, setHotnessSettingsByExchange] = useState<Record<string, HotnessExchangeConfig>>(() => initializeHotnessConfig());
   const [isRefreshingHotnessByExchange, setIsRefreshingHotnessByExchange] = useState<Record<string, boolean>>(() => initializeHotnessRefreshingState());
   const [hotnessRefreshProgressByExchange, setHotnessRefreshProgressByExchange] = useState<Record<string, HotnessRefreshProgress | null>>({});
-  const [expandedExchanges, setExpandedExchanges] = useState<Record<string, boolean>>({
-    TOR: true,
-    VAN: true,
-    NYQ: true,
-    NMS: true,
-    ASE: true,
-    PCX: true,
-  });
+  const [expandedExchanges, setExpandedExchanges] = useState<Record<string, boolean>>(() => getDefaultExpandedExchanges());
+
+  useEffect(() => {
+    setExpandedExchanges(initializeExpandedExchanges());
+  }, []);
 
   const clampHotnessScore = (value: number) => Math.min(100, Math.max(0, value));
 
   const toggleExchange = (code: string) => {
     setExpandedExchanges((prev) => ({ ...prev, [code]: !prev[code] }));
   };
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(EXCHANGE_EXPANDED_STATE_STORAGE_KEY, JSON.stringify(expandedExchanges));
+    } catch (error) {
+      console.error('Error saving expanded exchange state:', error);
+    }
+  }, [expandedExchanges]);
 
   const getExchangeSymbols = (exchangeCode: string) => {
     return warmSymbols
